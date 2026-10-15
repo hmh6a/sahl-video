@@ -1,0 +1,7 @@
+Anton Regular — unmodified font bundled with Sahl Video.
+Copyright 2020 The Anton Project Authors.
+Designer: Vernon Adams
+License: SIL Open Font License 1.1 (see Anton-OFL.txt)
+Source: https://github.com/google/fonts/tree/main/ofl/anton
+Downloaded: 2026-10-15
+File SHA256: a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab

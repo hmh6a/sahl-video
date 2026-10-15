@@ -1,0 +1,21 @@
+node_modules/
+dist/
+dist-1.1/
+dist-1.2/
+test-output/
+*.log
+dist-1.3/
+dist-1.4/
+dist-1.5/
+dist-1.6/
+dist-1.7/
+dist-1.8/
+
+# Personal projects, credentials, and generated output
+.env
+.env.*
+*.sahl
+*.part
+/projects/
+/media/
+/dist-*/

@@ -1,0 +1,51 @@
+{
+  "name": "sahl-video",
+  "version": "1.8.0",
+  "description": "Simple local video trimming and editable titles",
+  "author": "Sahl Video",
+  "main": "app/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "dist": "electron-builder --win portable --x64",
+    "pretest": "node tests/fixtures.cjs",
+    "preview": "node tests/fixtures.cjs --preview && node tests/preview-server.js"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0"
+  },
+  "devDependencies": {
+    "electron": "^40.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "local.sahl.video",
+    "productName": "Sahl Video",
+    "directories": {
+      "output": "dist-1.8"
+    },
+    "files": [
+      "app/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/ffmpeg.exe",
+      "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe"
+    ],
+    "win": {
+      "target": "portable",
+      "signExecutable": false,
+      "icon": "app/assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "Sahl-Video-1.8.0.exe"
+    },
+    "compression": "normal"
+  },
+  "allowScripts": {
+    "electron@40.10.6": true,
+    "electron-winstaller@5.4.0": true,
+    "ffmpeg-static@5.3.0": true
+  }
+}
