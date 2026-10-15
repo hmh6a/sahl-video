@@ -2,12 +2,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
+const { versionFromTag } = require('./set-build-version.cjs');
+
+if (process.env.GITHUB_EVENT_NAME !== 'push' || process.env.GITHUB_REF_TYPE !== 'tag') throw new Error('Only a pushed version tag can publish a release');
+const requestedVersion = versionFromTag(process.env.GITHUB_REF_NAME);
 
 const manifest = JSON.parse(fs.readFileSync('release/manifest.json', 'utf8'));
 const { tag, version, filename, sha256, commit } = manifest;
 const repo = process.env.GH_REPO;
 if (!repo || !process.env.GH_TOKEN) throw new Error('GitHub Actions repository and token are required');
-if (!/^v\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(tag) || tag !== `v${version}`) throw new Error('Invalid release version');
+if (version !== requestedVersion || tag !== process.env.GITHUB_REF_NAME) throw new Error('Release version must match the pushed tag');
 if (!/^[a-f0-9]{40}$/.test(commit) || commit !== process.env.GITHUB_SHA) throw new Error('Artifact belongs to a different commit');
 if (path.basename(filename) !== filename || !filename.endsWith('.exe')) throw new Error('Invalid artifact filename');
 const exe = path.join('release', filename);
@@ -24,14 +28,14 @@ function optionalJson(...args) {
   }
 }
 
-// Never move an existing version tag to different source code.
+// Publish only the owner's existing tag; never create or move a tag.
 const tagRef = optionalJson('api', `repos/${repo}/git/ref/tags/${tag}`);
 if (tagRef) {
   let object = tagRef.object;
   for (let depth = 0; object.type === 'tag' && depth < 5; depth++) object = JSON.parse(gh('api', `repos/${repo}/git/tags/${object.sha}`)).object;
   if (object.type !== 'commit' || object.sha !== commit) throw new Error(`${tag} already points to different code. Increase the package version before publishing.`);
 } else {
-  gh('api', '--method', 'POST', `repos/${repo}/git/refs`, '-f', `ref=refs/tags/${tag}`, '-f', `sha=${commit}`);
+  throw new Error('The pushed tag no longer exists. Release publication stopped.');
 }
 
 const notes = fs.readFileSync('RELEASE_NOTES.md', 'utf8') + `\n\nBuilt and tested on GitHub Actions from commit ${commit}.\n\nDownload **${filename}** below. **SHA256SUMS.txt** contains its checksum.\n`;
@@ -43,17 +47,6 @@ gh('release', 'edit', tag, '--draft=false', '--latest', '--title', `Sahl Video $
 const published = JSON.parse(gh('release', 'view', tag, '--json', 'isDraft,url,assets'));
 const uploaded = published.assets.find(asset => asset.name === filename);
 if (published.isDraft || !uploaded || uploaded.size !== fs.statSync(exe).size) throw new Error('Published EXE could not be verified');
-// Retire only the pre-reset release requested by the owner, after its replacement is verified.
-const retired = require('../release-config.json').retiredRelease;
-if (retired && retired.tag !== tag) {
-  const oldRef = optionalJson('api', `repos/${repo}/git/ref/tags/${retired.tag}`);
-  if (oldRef) {
-    if (oldRef.object.type !== 'commit' || oldRef.object.sha !== retired.commit) throw new Error('Retired release was changed; it has been preserved for review.');
-    const oldRelease = optionalJson('release', 'view', retired.tag, '--json', 'url');
-    if (oldRelease) gh('release', 'delete', retired.tag, '--yes');
-    gh('api', '--method', 'DELETE', `repos/${repo}/git/refs/tags/${retired.tag}`);
-  }
-}
 const summary = `Release ready: ${published.url}\n\n${filename} (${uploaded.size} bytes)\n`;
 console.log(summary);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);

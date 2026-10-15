@@ -51,15 +51,27 @@ npx electron tests/electron-protocol.cjs
 npm run dist -- --publish never
 ```
 
-Build output is written to `dist/`. Tests cover project portability and recovery, timeline editing, text placement, real video exports, cancellation, update integrity, and automatic release numbering. Hardware encoding tests are skipped when no supported GPU encoder is available.
+Build output is written to `dist/`. Tests cover project portability and recovery, timeline editing, text placement, real video exports, cancellation, update integrity, and tag-based release versioning. Hardware encoding tests are skipped when no supported GPU encoder is available.
 
-## Automatic releases
+## Publishing a release
 
-Every push to `main` runs the Windows build workflow. After tests and package verification pass, GitHub Actions publishes a new release and its EXE and checksum file. No manual workflow dispatch or version tag is needed.
+A release is built and published **only when a version tag is pushed**. Pushing changes to `main` does not start a release, and there is no manual publish button.
 
-Versioning starts at **1.0.0**, then advances through **1.0.1**, **1.0.2**, and so on. `release-config.json` records the start of the series; the first-parent commit distance determines the patch number. Retrying the same commit keeps the same version. Failed or superseded builds may leave gaps in the numbering. Version changes are applied during the build, avoiding automated version-bump commits and build loops.
+Use a new stable tag in the form **`vMAJOR.MINOR.PATCH`**, such as `v1.0.1`. The tag determines the version shown in the app, the release title, and the EXE filename. For example, `v2.4.0` produces version `2.4.0` and `Sahl-Video-2.4.0.exe`; you do not need to edit package version fields yourself.
 
-The workflow can also be run manually for diagnostics. Turn off its publish input for a build-only run.
+1. Commit your changes and push them to GitHub.
+2. Create the desired version tag on the commit you want to release.
+3. Push that tag to GitHub. Creating it locally alone does not trigger a build.
+4. GitHub Actions tests and builds the tagged code, then publishes its EXE and checksum file if the checks pass.
+
+For example, from the commit you want to release:
+
+```sh
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+Choose an unused, higher version for each update. Retry failed builds with the same tag; do not move published tags to different commits. The workflow never creates or deletes version tags. In-app update notifications become available after the release is published.
 
 ## Contributing
 

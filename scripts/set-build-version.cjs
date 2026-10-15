@@ -1,14 +1,11 @@
 const fs = require('node:fs');
-const { execFileSync } = require('node:child_process');
-function buildVersion(series, distance) {
-  if (!/^\d+\.\d+$/.test(series) || !Number.isSafeInteger(distance) || distance < 1) throw new Error('Invalid release series or history');
-  return `${series}.${distance - 1}`;
+function versionFromTag(tag) {
+  if (typeof tag !== 'string' || !/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(tag) || !tag.slice(1).split('.').map(Number).every(Number.isSafeInteger)) throw new Error('Use a stable version tag such as v1.0.1');
+  return tag.slice(1);
 }
-function run() {
-  const config = require('../release-config.json');
-  const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
-  git('merge-base', '--is-ancestor', config.baseCommit, 'HEAD');
-  const version = buildVersion(config.series, Number(git('rev-list', '--count', '--first-parent', `${config.baseCommit}..HEAD`)));
+function run(env = process.env) {
+  if (env.GITHUB_REF_TYPE !== 'tag') throw new Error('Release builds require a pushed version tag');
+  const version = versionFromTag(env.GITHUB_REF_NAME);
   for (const file of ['package.json', 'package-lock.json']) {
     const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
     pkg.version = version;
@@ -19,4 +16,4 @@ function run() {
   return version;
 }
 if (require.main === module) run();
-module.exports = { buildVersion, run };
+module.exports = { versionFromTag, run };

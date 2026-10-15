@@ -1,21 +1,15 @@
 name: Build Windows release
 
 on:
-  workflow_dispatch:
-    inputs:
-      publish:
-        description: Publish the tested EXE to Releases
-        type: boolean
-        default: true
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
 
 concurrency:
-  group: windows-release-main
+  group: windows-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -27,15 +21,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24.18.0'
           cache: npm
+      - name: Set release version from the pushed tag
+        run: node scripts/set-build-version.cjs
       - name: Install locked dependencies
         run: npm ci
-      - name: Assign automatic release version
-        run: node scripts/set-build-version.cjs
       - name: Test editing, recovery and real video export
         run: npm test
       - name: Test Electron media seeking
@@ -58,7 +51,7 @@ jobs:
   publish:
     name: Publish GitHub release
     needs: build
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.publish)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
