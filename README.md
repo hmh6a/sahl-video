@@ -14,15 +14,20 @@ A free, open-source video editor for Windows with an Arabic interface. Cut clips
 - **Export controls:** source resolution by default, selectable output resolution up to 4K, source frame rate, supported GPU encoders or CPU encoding, elapsed time, estimated time remaining, and cancellation.
 - **In-app updates:** automatic checks, a new-version notification, download progress and cancellation, and SHA-256 verification before the downloaded file is made available.
 
-## Download and run
+## Download and install
 
 1. Open the [latest release](https://github.com/hmh6a/sahl-video/releases/latest).
 2. Download `Sahl-Video-<version>.exe` from **Assets**.
-3. Run it on 64-bit Windows. The portable application includes its video tools; Node.js and Python are not required.
+3. Run the setup wizard on 64-bit Windows and choose Arabic or English.
+4. Choose who to install for and the installation folder, then install. The wizard creates desktop and Start menu shortcuts and an uninstall entry in Windows Settings. Installing for all users or in a protected folder may require administrator permission.
+
+The installer includes the video tools; Node.js and Python are not required. Uninstalling keeps application data, including recovery snapshots. Saved project folders are independent of the application installation folder.
 
 The interface is in Arabic. Start with **استيراد فيديو**, use the scissors to cut, add titles from **الكتابة**, and choose **تصدير** when ready.
 
-Updates are checked at startup and every six hours. You can also select **التحديثات → فحص الآن**. Downloads start only when you choose **تنزيل التحديث**. After downloading, save your project, close the current application, and open the new EXE. This portable build does not replace a running executable automatically.
+Updates are checked at startup and every six hours. You can also select **التحديثات → فحص الآن**. Downloads start only when you choose **تنزيل التحديث**. After downloading, save your project, close Sahl Video, and run the downloaded installer. It remembers the previous installation folder. Installation starts only when you run the wizard.
+
+Version **1.0.0** was portable. The next tagged release uses an installer with the same download naming scheme, so the existing updater can download it. After installing, open Sahl Video from its shortcut instead of the old portable EXE. The application keeps the same identity and local data location.
 
 The earlier experimental release series has been reset. Install **1.0.0** once to receive notifications for subsequent releases; experimental builds do not contain the updater.
 
@@ -43,7 +48,7 @@ npm ci
 npm start
 ```
 
-Run the tests and build a portable Windows application:
+Run the tests and build the Windows setup wizard:
 
 ```sh
 npm test
@@ -59,7 +64,7 @@ A release is built and published **only when a version tag is pushed**. Pushing 
 
 Use a new stable tag in the form **`vMAJOR.MINOR.PATCH`**, such as `v1.0.1`. The tag determines the version shown in the app, the release title, and the EXE filename. For example, `v2.4.0` produces version `2.4.0` and `Sahl-Video-2.4.0.exe`; you do not need to edit package version fields yourself.
 
-1. Commit your changes and push them to GitHub.
+1. Push changes on a separate branch, open a pull request, and merge it after the required review.
 2. Create the desired version tag on the commit you want to release.
 3. Push that tag to GitHub. Creating it locally alone does not trigger a build.
 4. GitHub Actions tests and builds the tagged code, then publishes its EXE and checksum file if the checks pass.

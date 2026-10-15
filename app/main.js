@@ -55,7 +55,7 @@ ipcMain.handle('download-update',async()=>{
   if(choosingUpdate||updates.controller||updates.inflight||!updates.available)return updates.status();
   choosingUpdate=true;
   try{
-    const chosen=await dialog.showSaveDialog(win,{title:'نزّل نسخة سهل الجديدة',defaultPath:path.join(app.getPath('downloads'),updates.available.filename),filters:[{name:'Windows application',extensions:['exe']}]});
+    const chosen=await dialog.showSaveDialog(win,{title:'حفظ مُثبّت تحديث سهل',defaultPath:path.join(app.getPath('downloads'),updates.available.filename),filters:[{name:'Windows installer',extensions:['exe']}]});
     if(chosen.canceled)return updates.status();
     const destination=path.extname(chosen.filePath).toLowerCase()==='.exe'?chosen.filePath:chosen.filePath+'.exe';
     return await updates.download(destination);
