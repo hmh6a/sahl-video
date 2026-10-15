@@ -1,6 +1,6 @@
 {
   "name": "sahl-video",
-  "version": "1.8.0",
+  "version": "1.0.0",
   "description": "Simple local video trimming and editable titles",
   "author": "Sahl Video",
   "main": "app/main.js",
@@ -23,11 +23,12 @@
     "appId": "local.sahl.video",
     "productName": "Sahl Video",
     "directories": {
-      "output": "dist-1.8"
+      "output": "dist"
     },
     "files": [
       "app/**/*",
-      "package.json"
+      "package.json",
+      "LICENSE"
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/ffmpeg.exe",
@@ -39,7 +40,7 @@
       "icon": "app/assets/icon.ico"
     },
     "portable": {
-      "artifactName": "Sahl-Video-1.8.0.exe"
+      "artifactName": "Sahl-Video-${version}.exe"
     },
     "compression": "normal"
   },
@@ -47,5 +48,14 @@
     "electron@40.10.6": true,
     "electron-winstaller@5.4.0": true,
     "ffmpeg-static@5.3.0": true
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hmh6a/sahl-video.git"
+  },
+  "homepage": "https://github.com/hmh6a/sahl-video",
+  "bugs": {
+    "url": "https://github.com/hmh6a/sahl-video/issues"
   }
 }

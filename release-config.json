@@ -1,0 +1,8 @@
+{
+  "series": "1.0",
+  "baseCommit": "370255968537646039874acdcaf865da79f633ef",
+  "retiredRelease": {
+    "tag": "v1.8.0",
+    "commit": "370255968537646039874acdcaf865da79f633ef"
+  }
+}

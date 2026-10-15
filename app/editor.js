@@ -144,7 +144,7 @@ for(const el of [document.querySelector('.media-panel'),$('timeline-scroll'),$('
 }
 document.addEventListener('dragover',e=>e.preventDefault());document.addEventListener('drop',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{
- if(busy)return;if(e.ctrlKey&&e.key.toLowerCase()==='s'){e.preventDefault();saveCurrentProject(e.shiftKey);return;}if(e.ctrlKey&&e.key.toLowerCase()==='o'){e.preventDefault();openSavedProject();return;}
+ if(busy||document.querySelector('dialog[open]'))return;if(e.ctrlKey&&e.key.toLowerCase()==='s'){e.preventDefault();saveCurrentProject(e.shiftKey);return;}if(e.ctrlKey&&e.key.toLowerCase()==='o'){e.preventDefault();openSavedProject();return;}
  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)||e.target.isContentEditable)return;
  if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();undo();}else if(e.ctrlKey&&e.key.toLowerCase()==='y'){e.preventDefault();redo();}else if(['Delete','Backspace'].includes(e.key)){e.preventDefault();deleteSelected();}else if(e.key.toLowerCase()==='s'&&!e.ctrlKey){e.preventDefault();splitHere();}else if(e.code==='Space'&&clips.length&&!unsupported){e.preventDefault();$('play').click();}
 });

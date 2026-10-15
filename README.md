@@ -1,82 +1,70 @@
-# Sahl Video — سهل 1.8
+# Sahl Video | سهل
 
-محرر محلي لويندوز: قص بالمقص، عدة فيديوهات وصور، نصوص عربية وإنجليزية، وتصدير MP4 بدون علامة مائية.
+A free, open-source video editor for Windows with an Arabic interface. Cut clips, add reusable titles and images, and export up to 4K without a watermark.
 
-## التشغيل
+[Download for Windows](https://github.com/hmh6a/sahl-video/releases/latest) · [Report an issue](https://github.com/hmh6a/sahl-video/issues) · [Build status](https://github.com/hmh6a/sahl-video/actions/workflows/windows-release.yml)
 
-حمّل `Sahl-Video-1.8.0.exe` من [صفحة الإصدارات](https://github.com/hmh6a/sahl-video/releases/latest)، أو شغّل `dist-1.8/Sahl-Video-1.8.0.exe` بعد البناء. أدوات الفيديو مضمّنة، ولا يحتاج تثبيت Node أو Python. أول تشغيل للنسخة المحمولة قد يستغرق لحظات.
+## Features
 
-1. استورد فيديوهات وصور، أو اسحبها من مجلد ويندوز إلى المكتبة. الملفات الأولى تُضاف للشريط تلقائياً. بعد ذلك اسحب من المكتبة إلى المكان المطلوب، أو اضغط + لإدخال الملف عند المؤشر.
-2. فعّل المقص واضغط مكان القص، أو اضغط S لتقسيم القطعة عند المؤشر. طفي المقص واختار قطعة لحذفها. الصور تقبل القص أيضاً.
-3. لإدخال صورة بمنتصف فيديو، حرّك المؤشر واضغط «إضافة صورة»، أو اسحب الصورة إلى المكان المطلوب. ينقسم الفيديو تلقائياً وتُضاف الصورة بين الجزأين. غيّر «مدة الصورة» أسفل الشريط. تقدر أيضاً تقسّم وتحذف جزءاً ثم تضع الصورة مكانه.
-4. اضغط زر الانتقال بين القطعتين لإضافة تلاشي للأسود مع تلاشي الصوت أو إزالته. عند إدخال ملف، تُضاف انتقالات على حدوده تلقائياً. اسحب مقبض التحريك أعلى القطعة لتغيير ترتيبها.
-5. اختار فيديو أو صورة أو شريط نص، ثم Delete أو Backspace لحذفه. أثناء كتابة نص تبقى أزرار الحذف للكتابة فقط. Ctrl+Z للتراجع، وCtrl+Y للإعادة.
-6. من لوحة الكتابة، أضف نصوصاً مستقلة وحدّد البداية والمدة والخط والحجم. توجد تسعة أماكن جاهزة، أو اسحب إطار النص داخل المعاينة. اسحب شريط النص لتغيير بدايته، وحوافه لتغيير مدته.
-7. توجد ثمانية أشكال: ألعاب، بسيط، بطاقة، شريط ملون، حدود، نيون، شارة، سينمائي. وتوجد ستة خيارات للظهور: تلاشي، دخول من اليسار، دخول من اليمين، صعود، نزول، ظهور مباشر. زر «شغّل حركة النص» يعرض الحركة من بدايتها.
-8. من التصدير اختار الدقة: نفس الأصل (الافتراضي)، 4K، 1440p، 1080p، 720p، أو 480p. تظهر الأبعاد الفعلية ومعدل الإطارات FPS. كارت الشاشة GPU هو الافتراضي عند توفره، ويمكن اختيار CPU.
+- **Simple timeline editing:** split with the scissors tool, delete or reorder clips, scrub through thumbnails, and drag media onto the timeline.
+- **Titles and templates:** multiple text layers with independent timing and placement, font selection, reusable layouts, and entrance animations. Anton is included.
+- **Images and transitions:** insert images between clips or into a video, set their duration, and add picture and audio fades.
+- **Portable projects:** save edits and their media in one folder, move it to another computer, and continue editing.
+- **Recovery:** automatic recovery snapshots every minute, including while exporting.
+- **Export controls:** source resolution by default, selectable output resolution up to 4K, source frame rate, supported GPU encoders or CPU encoding, elapsed time, estimated time remaining, and cancellation.
+- **In-app updates:** automatic checks, a new-version notification, download progress and cancellation, and SHA-256 verification before the downloaded file is made available.
 
-## حفظ المشروع والقوالب
+## Download and run
 
-«حفظ مع الملفات» أو Ctrl+S ينشئ مجلداً باسم المشروع بداخله ملف `.sahl` ومجلد `media` للفيديوهات والصور. ملف المشروع يحفظ التعديلات بكل القصات وترتيب الفيديوهات والصور والانتقالات، وكل النصوص وخطوطها وحركاتها وتوقيتها وأماكنها، وإعدادات التصدير. «حفظ باسم» أو Ctrl+Shift+S يحفظ نسخة أخرى. «فتح مشروع» أو Ctrl+O يرجّع المشروع بعد إغلاق البرنامج. يسألك البرنامج عن حفظ التغييرات عند الإغلاق أو فتح مشروع آخر.
+1. Open the [latest release](https://github.com/hmh6a/sahl-video/releases/latest).
+2. Download `Sahl-Video-<version>.exe` from **Assets**.
+3. Run it on 64-bit Windows. The portable application includes its video tools; Node.js and Python are not required.
 
-ينسخ البرنامج كل الفيديوهات والصور المستوردة إلى مجلد `media` بدون إعادة ضغط أو تغيير الملف الأصلي، ويكتب روابط نسبية داخل المشروع. انقل مجلد المشروع كاملاً؛ بعدها افتح ملف `.sahl` الموجود بداخله. لا تحتاج الملفات الأصلية الخارجية بعد اكتمال الحفظ. الحفظ المتكرر يستخدم النسخ الموجودة ويضيف الملفات الجديدة فقط. «حفظ باسم» ينشئ مجلداً مستقلاً آخر. إذا كان اسم المجلد موجوداً، يضيف رقماً حتى لا يستبدل محتوياته.
+The interface is in Arabic. Start with **استيراد فيديو**, use the scissors to cut, add titles from **الكتابة**, and choose **تصدير** when ready.
 
-أثناء النسخ يظهر تقدّم الحفظ وزر إلغاء. إلغاء الحفظ أو فشله لا يغيّر آخر نسخة محفوظة. عند فتح مشروع من النسخة القديمة، أول حفظ ينشئ المجلد المحمول ويترك ملف المشروع القديم كما هو. إذا حذفت ملفاً من داخل مجلد المشروع، سيطلب تحديده من جديد.
+Updates are checked at startup and every six hours. You can also select **التحديثات → فحص الآن**. Downloads start only when you choose **تنزيل التحديث**. After downloading, save your project, close the current application, and open the new EXE. This portable build does not replace a running executable automatically.
 
-لحفظ ترتيب كتابة تستعمله لفيديوهات أخرى: اكتب اسم القالب في «قوالبي المحفوظة»، واضغط «حفظ ترتيب النصوص كقالب». يتذكر جميع النصوص وتوقيتها وأماكنها وأشكالها وخطوطها وحركاتها. بعد تطبيقه غيّر الكتابة فقط. تطبيق القالب قابل للتراجع.
+The earlier experimental release series has been reset. Install **1.0.0** once to receive notifications for subsequent releases; experimental builds do not contain the updater.
 
-خط Anton مضمّن داخل البرنامج، ويُحمّل محلياً قبل المعاينة والتصدير. اختاره من قائمة «نوع الخط» باسم «Anton — مضمّن». الاختيار يُحفظ مع المشروع وقوالب النص. Anton يحتوي حروفاً لاتينية؛ العربية تستعمل Segoe UI. رخصته SIL OFL 1.1 موجودة في `app/assets/fonts/Anton-OFL.txt`.
+## Projects and privacy
 
-## الحفظ التلقائي والاسترجاع
+Use **حفظ مع الملفات** to create a project folder containing a `.sahl` file and a `media` folder. Move the whole folder to keep its media available. Original files are copied without re-encoding.
 
-الحفظ التلقائي مفعّل كل 60 ثانية، حتى للمشروع غير المسمّى وأثناء التصدير. يحفظ التغييرات الجديدة في نسخة استرجاع محلية بدون إيقاف التحرير، ويعرض وقت آخر حفظ أعلى النافذة. عند فتح البرنامج بعد انغلاق مفاجئ تظهر «كمّل من آخر حفظ تلقائي»؛ اختار النسخة واضغط «استرجع المشروع». «لاحقاً» يحتفظ بالنسخ ويمكن الرجوع لها من زر «استرجاع».
+Automatic recovery stores the latest edits locally every minute. Newly imported media remains linked to its original location until you save with files, and edits made since the last recovery snapshot may be lost after a crash.
 
-تحفظ النسخة القصات والصور والنصوص ومواقعها وخطوطها وحركاتها وتوقيتها وإعدادات التصدير. يستعمل ملفين بالتناوب حتى تبقى النسخة السابقة سليمة إذا انقطع الحفظ، ويحتفظ بجلسات المشاريع المختلفة بدون خلطها أو عرض مشروع مفتوح بنافذة أخرى. الحفظ اليدوي الناجح أو اختيار تجاهل التغييرات عند الإغلاق ينهي نسخة الاسترجاع لتلك الجلسة. فشل الكتابة يظهر أعلى النافذة ويُعاد المحاولة في الدقيقة التالية.
+Editing and rendering happen on your computer. Project files and videos are not uploaded. The update checker contacts GitHub to read release metadata and downloads a release only on request.
 
-الحفظ التلقائي يسترجع آخر لقطة محفوظة، لذلك قد تفقد تغييرات آخر دقيقة. ملفات الفيديو والصور الجديدة تبقى مرتبطة بمكانها إلى أن تستخدم «حفظ مع الملفات»؛ هذا الزر يجمع كل الوسائط للنقل. نسخ الاسترجاع محفوظة بمجلد recovery داخل بيانات التطبيق في Windows، ولا يعيد نسخ الفيديوهات الكبيرة كل دقيقة.
+## Development
 
-## إلغاء الرندرة
+Use Node.js **24.18.0** and npm on Windows.
 
-أثناء التصدير يظهر زر أحمر كبير «إلغاء الرندرة» أعلى الإعدادات. يبقى ظاهرًا عند تمرير النافذة. الضغط عليه يوقف عملية FFmpeg وينظف ملف التصدير المؤقت، ويعيد أدوات التحرير للعمل مع بقاء القصات والنصوص. يمكن التصدير من جديد مباشرة. إذا اخترت اسم فيديو موجود ثم ألغيت التصدير، يبقى الملف السابق كما هو.
+```sh
+npm ci
+npm start
+```
 
-## وقت التصدير
+Run the tests and build a portable Windows application:
 
-تظهر مدة المعالجة المنقضية، والوقت المتبقي التقريبي، وساعة الانتهاء المتوقعة. يبدأ العد عند تشغيل المعالجة بعد اختيار مكان الحفظ. التقدير مبني على الإطارات التي عولجت فعلياً، ويتكيف مع السرعة؛ يظهر «جاري حسابه» قبل توفر بيانات كافية أو أثناء توقف التقدم. يبقى التقدم أقل من 100% إلى أن يكتمل حفظ الملف، ويظهر الزمن الإجمالي بعد الانتهاء.
+```sh
+npm test
+npx electron tests/electron-protocol.cjs
+npm run dist -- --publish never
+```
 
-## الصورة والصوت
+Build output is written to `dist/`. Tests cover project portability and recovery, timeline editing, text placement, real video exports, cancellation, update integrity, and automatic release numbering. Hardware encoding tests are skipped when no supported GPU encoder is available.
 
-- افتراضياً، أبعاد ومعدل إطارات المشروع مأخوذة من أول فيديو مستورد. إذا كان المشروع صوراً فقط، يستخدم أبعاد أول صورة و30 إطاراً/ثانية. جميع الملفات التالية تُلائم هذه الأبعاد مع حواف سوداء عند اختلاف النسبة، بدون تمديد الصورة.
-- تغيير الدقة يحافظ على نسبة أبعاد المشروع ومعدل الإطارات. اختيار دقة أعلى لا يستعيد تفاصيل غير موجودة بالمصدر.
-- H.264 / MP4 مع جودة عالية أو أعلى، وصوت AAC 320 kbps. التصدير إعادة ضغط عالية الجودة، وليس lossless. نفس معدل إطارات المشروع يُطبق على جميع القطع (CFR).
-- يتحقق البرنامج فعلياً من NVIDIA NVENC وAMD AMF وIntel Quick Sync، ويختار أول بطاقة مدعومة. عند عدم توفر GPU اختار CPU من القائمة. المؤثرات وتجميع الصور تُعالج على CPU، وترميز الفيديو يستعمل GPU عند اختياره.
-- الانتقال تلاشي للأسود ثم ظهور، بدون تداخل زمني أو تقليل مدة المونتاج. الصور والملفات الصامتة تضيف صمتاً للمسار الصوتي عند دمجها مع فيديو يحتوي صوتاً.
-- الترميزات غير المدعومة بالمعاينة تُعرض كلقطات عند التنقل، ويمكن تصديرها بواسطة FFmpeg. المعاينة قد تتوقف لحظة عند تبديل المصدر؛ التصدير يجمع الإطارات بشكل متصل.
-- حتى 128 ملفاً في المكتبة، 64 قطعة على الشريط، و24 نصاً مستقلاً. العناوين خارج مدة المونتاج لا تظهر؛ حدّث توقيتها عند تقصير الفيديو.
-- صيغ الصور: PNG وJPG وJPEG وWEBP وBMP. المسار الصوتي الأول فقط؛ لا يدمج الترجمات المضمّنة. يدعم SDR، ويمنع تصدير HDR حتى لا تتغيّر ألوانه بصمت.
-- الوسائط تبقى محلية، ولا يرفعها البرنامج إلى الإنترنت. ملفات المصدر لا تتغيّر.
+## Automatic releases
 
-## التطوير والتحقق
+Every push to `main` runs the Windows build workflow. After tests and package verification pass, GitHub Actions publishes a new release and its EXE and checksum file. No manual workflow dispatch or version tag is needed.
 
-### البناء التلقائي على GitHub
+Versioning starts at **1.0.0**, then advances through **1.0.1**, **1.0.2**, and so on. `release-config.json` records the start of the series; the first-parent commit distance determines the patch number. Retrying the same commit keeps the same version. Failed or superseded builds may leave gaps in the numbering. Version changes are applied during the build, avoiding automated version-bump commits and build loops.
 
-من [Actions → Build Windows release](https://github.com/hmh6a/sahl-video/actions/workflows/windows-release.yml)، اضغط **Run workflow** على فرع `main`. خيار **Publish the tested EXE to Releases** مفعّل افتراضياً: يبني نسخة Windows x64 ويختبرها ثم ينشر ملف EXE وملف SHA256SUMS تلقائياً في Releases. لا يحتاج رفع الملف من جهازك أو إضافة توكن شخصي.
+The workflow can also be run manually for diagnostics. Turn off its publish input for a build-only run.
 
-رفع وسم مثل `v1.8.0` يشغّل البناء والنشر أيضاً، بشرط أن يطابق رقم `version` داخل `package.json`. للتحديث القادم غيّر الإصدار واسم ملف EXE ومجلد البناء في `package.json`، وحدّث `package-lock.json` و`RELEASE_NOTES.md` ثم شغّل البناء. لا يستبدل الوسم إذا كان يشير إلى كود إصدار مختلف.
+## Contributing
 
-إذا ألغيت خيار النشر، يبقى EXE متاحاً ضمن **Artifacts → sahl-windows-x64** لمدة 7 أيام. عند فشل اختبار أو بناء لا يبدأ النشر، ويمكن قراءة السبب من سجل التشغيل. تنفّذ الاختبارات على CPU؛ اختبار GPU يتخطى فقط عند عدم توفر بطاقة مدعومة على جهاز GitHub.
+Open an issue with reproduction steps, your Windows version, and the relevant video format. Pull requests are welcome. Avoid committing personal media, saved projects, build outputs, or credentials.
 
-بيئة البناء المختبرة تستخدم Node.js 24.18.0 على Windows، محلياً وعلى GitHub Actions. شغّل `npm ci` ثم `npm start`. `npm run dist` يبني نسخة ويندوز المحمولة x64 داخل `dist-1.8`. ملفات الوسائط والنتائج ونسخ المشاريع المحلية لا تدخل في المستودع.
+## License
 
-`npm test` يولّد وسائط اختبار اصطناعية محلياً؛ لا يحتاج فيديوهات المستخدم. `npm run preview` يشغّل معاينة التطوير على `http://127.0.0.1:4174`، مع تقدم تصدير تجريبي لفحص الواجهة.
-
-`npm test` يفحص القص والتوقيت والتلاشي والنصوص، حفظ وفتح المشروع وإعادة ربط الملفات وحوار الإغلاق، ومونتاج فيديو وصورة وفيديو بأبعاد مختلفة. يشمل تصديراً فعلياً بدقة 4K و60 إطاراً على CPU وGPU المدعوم، وتصديراً بدقة 720p، وفحص بكسلات الصور وحركة النصوص والصوت. اختبار GPU يتخطى فقط إن لم تتوفر بطاقة مدعومة.
-
-اختبار Electron المستقل `tests/electron-protocol.cjs` يفحص نطاقات بايتات الفيديو للتنقل الصحيح. خادم `tests/preview-server.js` مخصص للتحقق من الواجهة وملفات الاختبار فقط، ولا يُضمّن في التطبيق النهائي.
-
-فُحصت واجهة 1.7 باستيراد فيديو، التشغيل من موضع المؤشر، إدخال صورة داخل الفيديو وتغيير مدتها، السحب والإفلات من المكتبة، إضافة فيديو ثانٍ، حفظ نصين مع حركة ومكان مستقل ثم إعادة تحميل الواجهة وفتح المشروع، وحذف النص بـ Backspace وخيارات دقة التصدير.
-
-يستخدم Electron وFFmpeg عبر ffmpeg-static وffprobe-static. معلومات تراخيص المكونات موجودة مع حزمها.
-
-فحص 1.7: نسخ الوسائط ومطابقة بايتاتها، نقل المشروع وفتح ملفاته بدون المصادر الخارجية، الحفظ المتكرر و«حفظ باسم»، الإلغاء أثناء النسخ، ترقية المشاريع القديمة، حفظ واسترجاع Anton، ومطابقة ملف الخط الأصلي ورخصته.
-
-فحص 1.8: إلغاء عملية ترميز فعلية، تنظيف الملف المؤقت، حماية الفيديو الموجود، وإعادة التصدير بعد الإلغاء.
+The application source is available under the [MIT License](LICENSE). Electron, FFmpeg, FFprobe, fonts, and other bundled dependencies retain their own licenses. Anton's SIL Open Font License is included in `app/assets/fonts/Anton-OFL.txt`.

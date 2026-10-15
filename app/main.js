@@ -4,6 +4,8 @@ const {spawn,execFile}=require('node:child_process'),{promisify}=require('node:u
 const {exportArgs}=require('./export'),timeline=require('./timeline'),Project=require('./project'),{saveBundle}=require('./project-bundle');
 const {detectEncoders}=require('./encoding'),{MediaLibrary}=require('./library'),{mediaResponse}=require('./media'),{TemplateStore}=require('./template-store');
 const {RecoveryStore,AutoSaver}=require('./recovery'),{ExportProgress}=require('./export-progress');
+const appVersion=require('../package.json').version,{Updates}=require('./updates');
+const updates=new Updates(appVersion,{notify:value=>message('update-status',value)});
 const exec=promisify(execFile),unpack=p=>p.replace('app.asar','app.asar.unpacked'),ffmpeg=unpack(require('ffmpeg-static')),ffprobe=unpack(require('ffprobe-static').path),library=new MediaLibrary(ffmpeg,ffprobe);
 let win,active,lastOutput,encoderPromise,fontsPromise,recovery,autoSaver,projectPath=null,projectState=null,dirty=false,closing=false,checkingClose=false,projectPortable=false,saving=false,projectAbort=null,importingMedia=false,opening=false;
 function capabilities(){return encoderPromise ||=detectEncoders(ffmpeg);}
@@ -15,7 +17,7 @@ async function cancelExport(){
   await job.done;return {canceled:true};
 }
 protocol.registerSchemesAsPrivileged([{scheme:'sahl-media',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true}}]);
-function title(){win?.setTitle((dirty?'● ':'')+(projectPath?path.basename(projectPath)+' — ':'')+'سهل — Sahl Video 1.8');}
+function title(){win?.setTitle((dirty?'● ':'')+(projectPath?path.basename(projectPath)+' — ':'')+'سهل — Sahl Video '+appVersion);}
 const mediaFilter=[{name:'Video & images',extensions:['mp4','mov','mkv','webm','m4v','avi','mts','png','jpg','jpeg','webp','bmp']}];
 async function saveProject(raw,saveAs=false){
   if(saving||importingMedia)throw new Error('انتظر انتهاء الحفظ أو استيراد الملفات.');saving=true;
@@ -35,17 +37,32 @@ async function keepChanges(){if(!dirty||!projectState)return true;const choice=a
 app.whenReady().then(()=>{
   recovery=new RecoveryStore(app.getPath('userData'));autoSaver=new AutoSaver(recovery,()=>({raw:projectState,assets:library.assets,dirty,blocked:saving||importingMedia||opening,projectPath,portable:projectPortable}),value=>message('autosave',value),{setIntervalFn:setInterval,clearIntervalFn:clearInterval});
   protocol.handle('sahl-media',request=>{const u=new URL(request.url),a=u.hostname==='asset'?library.assets[u.pathname.slice(1)]:null;return a?mediaResponse(a.path,request):new Response('Not found',{status:404});});
-  capabilities();win=new BrowserWindow({width:1500,height:960,minWidth:1120,minHeight:740,backgroundColor:'#14131a',icon:path.join(__dirname,'assets/icon.ico'),autoHideMenuBar:true,title:'سهل — Sahl Video 1.8',webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+  capabilities();win=new BrowserWindow({width:1500,height:960,minWidth:1120,minHeight:740,backgroundColor:'#14131a',icon:path.join(__dirname,'assets/icon.ico'),autoHideMenuBar:true,title:'سهل — Sahl Video '+appVersion,webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());win.loadFile(path.join(__dirname,'index.html'));
   win.webContents.on('render-process-gone',()=>autoSaver.capture());
   win.on('close',async e=>{if(closing)return;e.preventDefault();if(checkingClose||saving)return;checkingClose=true;
     try{if(active){const choice=await dialog.showMessageBox(win,{type:'question',buttons:['استمر بالتصدير','إلغاء التصدير وإغلاق'],defaultId:0,cancelId:0,message:'التصدير مستمر. تريد تلغيه وتغلق البرنامج؟'});if(choice.response===0)return;}
-      if(!await keepChanges())return;if(active){const stopped=await cancelExport();if(stopped.error){await dialog.showMessageBox(win,{type:'error',message:stopped.error});return;}}clearRecovery();autoSaver.stop();closing=true;win.close();
+      if(!await keepChanges())return;if(active){const stopped=await cancelExport();if(stopped.error){await dialog.showMessageBox(win,{type:'error',message:stopped.error});return;}}updates.cancel();await updates.done;clearRecovery();autoSaver.stop();closing=true;win.close();
     }finally{checkingClose=false;}
   });
 });
 app.on('window-all-closed',()=>app.quit());
 ipcMain.handle('encoders',()=>capabilities());
+ipcMain.handle('update-status',()=>updates.status());
+ipcMain.handle('check-updates',()=>updates.check());
+let choosingUpdate=false;
+ipcMain.handle('download-update',async()=>{
+  if(choosingUpdate||updates.controller||updates.inflight||!updates.available)return updates.status();
+  choosingUpdate=true;
+  try{
+    const chosen=await dialog.showSaveDialog(win,{title:'نزّل نسخة سهل الجديدة',defaultPath:path.join(app.getPath('downloads'),updates.available.filename),filters:[{name:'Windows application',extensions:['exe']}]});
+    if(chosen.canceled)return updates.status();
+    const destination=path.extname(chosen.filePath).toLowerCase()==='.exe'?chosen.filePath:chosen.filePath+'.exe';
+    return await updates.download(destination);
+  }catch(e){return updates.emit({phase:'error',message:e.message});}finally{choosingUpdate=false;}
+});
+ipcMain.handle('cancel-update',()=>{updates.cancel();return updates.status();});
+ipcMain.handle('show-update',()=>{if(updates.downloaded)shell.showItemInFolder(updates.downloaded.path);});
 ipcMain.handle('fonts',()=>fontsPromise ||=(async()=>{try{const {stdout}=await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command',"[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); Add-Type -AssemblyName System.Drawing; $fontCollection = New-Object System.Drawing.Text.InstalledFontCollection; ConvertTo-Json -Compress -InputObject @($fontCollection.Families.Name | Sort-Object -Unique)"],{windowsHide:true,timeout:15000,maxBuffer:2*1024*1024});const names=JSON.parse(stdout.replace(/^\uFEFF/,''));return Array.isArray(names)?names:[];}catch{return ['Segoe UI','Tahoma','Arial','Impact','Consolas'];}})());
 async function importMedia(paths){importingMedia=true;try{return await library.import(paths);}finally{importingMedia=false;}}
 ipcMain.handle('choose-media',async(_,kind)=>{if(active||saving||importingMedia||opening)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};const chosen=await dialog.showOpenDialog(win,{title:kind==='image'?'اختار صور':'استورد فيديوهات وصور',properties:['openFile','multiSelections'],filters:kind==='image'?[{name:'Images',extensions:['png','jpg','jpeg','webp','bmp']}]:mediaFilter});return chosen.canceled?null:importMedia(chosen.filePaths);});

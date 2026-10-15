@@ -1,0 +1,14 @@
+#export-dialog{width:600px;max-width:calc(100vw - 48px);box-sizing:border-box}
+#open-updates{font-size:11px;white-space:nowrap;padding:8px 12px;background:#25202f;border:1px solid #483759}
+#open-updates.has-update{background:#35214f;border-color:#b283f1;color:#ead7ff}
+#app-version{font-size:11px;color:#ae9bbf;direction:ltr}
+#updates-dialog{width:520px;max-width:calc(100vw - 48px);box-sizing:border-box}
+#updates-dialog .dialog-heading{margin-bottom:12px}
+#updates-dialog .dialog-heading h2{margin:0}
+#update-message{line-height:1.9;min-height:52px;font-size:14px}
+#update-message.error{color:#ffb1b1}
+#update-version{font-size:19px;font-weight:700;color:#d8b9ff}
+.update-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:22px}
+#updates-dialog .primary{margin:0}
+#update-progress{width:100%;accent-color:#9c57ec;margin-top:15px}
+#updates-dialog .hint{line-height:1.8;margin-top:20px}

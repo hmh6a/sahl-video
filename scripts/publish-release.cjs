@@ -43,6 +43,17 @@ gh('release', 'edit', tag, '--draft=false', '--latest', '--title', `Sahl Video $
 const published = JSON.parse(gh('release', 'view', tag, '--json', 'isDraft,url,assets'));
 const uploaded = published.assets.find(asset => asset.name === filename);
 if (published.isDraft || !uploaded || uploaded.size !== fs.statSync(exe).size) throw new Error('Published EXE could not be verified');
+// Retire only the pre-reset release requested by the owner, after its replacement is verified.
+const retired = require('../release-config.json').retiredRelease;
+if (retired && retired.tag !== tag) {
+  const oldRef = optionalJson('api', `repos/${repo}/git/ref/tags/${retired.tag}`);
+  if (oldRef) {
+    if (oldRef.object.type !== 'commit' || oldRef.object.sha !== retired.commit) throw new Error('Retired release was changed; it has been preserved for review.');
+    const oldRelease = optionalJson('release', 'view', retired.tag, '--json', 'url');
+    if (oldRelease) gh('release', 'delete', retired.tag, '--yes');
+    gh('api', '--method', 'DELETE', `repos/${repo}/git/refs/tags/${retired.tag}`);
+  }
+}
 const summary = `Release ready: ${published.url}\n\n${filename} (${uploaded.size} bytes)\n`;
 console.log(summary);
 if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
