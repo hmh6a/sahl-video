@@ -2,12 +2,12 @@ function autosavePending(){if(!$('autosave-status').classList.contains('error'))
 function autosaveStatus(value){const label=$('autosave-status');label.classList.toggle('error',value.phase==='error');
   if(value.phase==='error'){label.textContent='تعذّر الحفظ التلقائي';label.title=value.message+' — سيحاول مجدداً خلال دقيقة. تقدر تحفظ يدوياً.';return;}
   label.title='نسخة استرجاع محلية كل دقيقة. استخدم حفظ مع الملفات لجمع الوسائط ونقل المشروع.';
-  label.textContent=value.savedAt?(value.phase==='manual'?'المشروع محفوظ · ':'حُفظ تلقائياً · ')+new Date(value.savedAt).toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'}):'حفظ تلقائي كل دقيقة';
+  label.textContent=value.savedAt?(value.phase==='manual'?'المشروع محفوظ · ':'حُفظ تلقائياً · ')+new Date(value.savedAt).toLocaleTimeString('ar-IQ',{numberingSystem:'latn',hour:'2-digit',minute:'2-digit'}):'حفظ تلقائي كل دقيقة';
 }
 window.sahl.onAutosave?.(autosaveStatus);
 async function refreshRecovery(show=false){
   try{const items=await window.sahl.listRecovery?.()||[];$('open-recovery').hidden=!items.length;$('recovery-list').replaceChildren();
-    for(const item of items){const label=item.name+' — '+new Date(item.savedAt).toLocaleString('ar-IQ')+' · '+item.clips+' قطع / '+item.texts+' نص';$('recovery-list').add(new Option(label,item.id));}
+    for(const item of items){const label=item.name+' — '+new Date(item.savedAt).toLocaleString('ar-IQ',{numberingSystem:'latn'})+' · '+item.clips+' قطع / '+item.texts+' نص';$('recovery-list').add(new Option(label,item.id));}
     if(show&&items.length&&!busy&&!fileBusy){$('recovery-error').textContent='';$('recovery-dialog').showModal();}
   }catch(e){autosaveStatus({phase:'error',message:e.message});}
 }
