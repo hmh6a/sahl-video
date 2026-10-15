@@ -10,7 +10,7 @@ if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== tag
   throw new Error(`Tag must match package.json: expected ${tag}`);
 }
 const output = path.resolve(pkg.build.directories.output);
-const filename = pkg.build.portable.artifactName.replace('${version}', pkg.version);
+const filename = pkg.build.nsis.artifactName.replace('${version}', pkg.version);
 if (path.basename(filename) !== filename || !filename.endsWith('.exe')) throw new Error('Invalid EXE filename');
 const archive = path.join(output, 'win-unpacked', 'resources', 'app.asar');
 let checked = 0;

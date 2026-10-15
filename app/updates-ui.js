@@ -11,7 +11,7 @@
     byId('app-version').textContent = next.currentVersion || '—';
     byId('installed-version').textContent = next.currentVersion || '—';
     byId('update-version').textContent = next.version ? `الإصدار ${next.version}` : '';
-    byId('update-message').textContent = next.message || ({ idle: 'افحص إذا تتوفر نسخة جديدة من سهل.', checking: 'جاري فحص التحديثات…', current: 'عندك أحدث إصدار.', available: 'تتوفر نسخة جديدة. تقدر تنزّلها وتكمل شغلك.', downloading: 'جاري تنزيل التحديث والتحقق من سلامته…', downloaded: 'اكتمل التنزيل. احفظ مشروعك، أغلق النسخة الحالية وشغّل الملف الجديد.' }[next.phase] || 'تعذّر فحص التحديثات.');
+    byId('update-message').textContent = next.message || ({ idle: 'افحص إذا تتوفر نسخة جديدة من سهل.', checking: 'جاري فحص التحديثات…', current: 'عندك أحدث إصدار.', available: 'يتوفر تحديث جديد. نزّل ملف التثبيت وكمل شغلك إلى أن تكون جاهز للتحديث.', downloading: 'جاري تنزيل ملف التثبيت والتحقق من سلامته…', downloaded: 'اكتمل تنزيل المُثبّت. احفظ مشروعك وأغلق سهل، ثم افتح الملف واتبع خطوات التثبيت. تقدر تختار مكان تثبيت البرنامج.' }[next.phase] || 'تعذّر فحص التحديثات.');
     byId('update-message').classList.toggle('error', next.phase === 'error');
     byId('check-updates').disabled = active || next.phase === 'checking';
     byId('download-update').hidden = !found;

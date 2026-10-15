@@ -7,7 +7,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "dist": "electron-builder --win portable --x64",
+    "dist": "electron-builder --win nsis --x64",
     "pretest": "node tests/fixtures.cjs",
     "preview": "node tests/fixtures.cjs --preview && node tests/preview-server.js"
   },
@@ -35,12 +35,23 @@
       "node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe"
     ],
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "signExecutable": false,
       "icon": "app/assets/icon.ico"
     },
-    "portable": {
-      "artifactName": "Sahl-Video-${version}.exe"
+    "nsis": {
+      "artifactName": "Sahl-Video-${version}.exe",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sahl Video",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "installerLanguages": ["ar", "en_US"],
+      "displayLanguageSelector": true
     },
     "compression": "normal"
   },
