@@ -1,37 +1,27 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const crypto = require('node:crypto');
-const asar = require('@electron/asar');
-const pkg = require('../package.json');
-
-const tag = `v${pkg.version}`;
-if (!/^v\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(tag)) throw new Error('Invalid package version');
-if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== tag) {
-  throw new Error(`Tag must match package.json: expected ${tag}`);
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const pkg=require('../package.json'),{verifyPackage}=require('./verify-package.cjs');
+const {versionFromTag}=require('./set-build-version.cjs');
+const version=versionFromTag(process.env.GITHUB_REF_NAME);
+if(pkg.version!==version)throw Error('Package version must match the pushed tag');
+const verified=verifyPackage(),target=process.platform+'-'+process.arch,output=path.resolve(pkg.build.directories.output);
+const mac=process.platform==='darwin',autoUpdate=verified.package.sahlAutoUpdate!==false;
+if(mac&&autoUpdate){
+  const {execFileSync}=require('node:child_process'),app=path.resolve(verified.resources,'../..');
+  execFileSync('codesign',['--verify','--deep','--strict',app],{stdio:'pipe'});
+  // Stapling is an independent check that notarization actually completed.
+  execFileSync('xcrun',['stapler','validate',app],{stdio:'pipe'});
 }
-const output = path.resolve(pkg.build.directories.output);
-const filename = pkg.build.nsis.artifactName.replace('${version}', pkg.version);
-if (path.basename(filename) !== filename || !filename.endsWith('.exe')) throw new Error('Invalid EXE filename');
-const archive = path.join(output, 'win-unpacked', 'resources', 'app.asar');
-let checked = 0;
-function verifyDirectory(directory) {
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    const file = path.join(directory, entry.name);
-    if (entry.isDirectory()) verifyDirectory(file);
-    else {
-      if (!fs.readFileSync(file).equals(asar.extractFile(archive, file))) throw new Error(`Packaged file differs: ${file}`);
-      checked++;
-    }
-  }
-}
-verifyDirectory('app');
-const binary = fs.readFileSync(path.join(output, filename));
-if (binary.length < 1024 * 1024 || binary.toString('ascii', 0, 2) !== 'MZ') throw new Error('Missing or invalid Windows EXE');
-const sha256 = crypto.createHash('sha256').update(binary).digest('hex');
-fs.mkdirSync('release', { recursive: true });
-fs.writeFileSync(path.join('release', filename), binary);
-fs.writeFileSync('release/SHA256SUMS.txt', `${sha256}  ${filename}\n`);
-fs.writeFileSync('release/manifest.json', JSON.stringify({ version: pkg.version, tag, filename, sha256, commit: process.env.GITHUB_SHA || null }, null, 2) + '\n');
-const summary = `Verified ${checked} packaged files, including Anton and its licence.\n\nWindows x64: ${filename}\n\nSHA256: ${sha256}\n`;
-console.log(summary);
-if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+const base=mac?`Sahl-Video-${version}-mac-${process.arch}`:`Sahl-Video-${version}`;
+const required=mac?[base+'.dmg',base+'.zip',...(autoUpdate?['latest-mac.yml']:[])]:[base+'.exe','latest.yml'];
+for(const file of required)if(!fs.existsSync(path.join(output,file)))throw Error(`Missing release artifact: ${file}`);
+const names=[...required,...fs.readdirSync(output).filter(n=>n.startsWith(base+'.')&&n.endsWith('.blockmap'))];
+fs.mkdirSync('release',{recursive:true});
+const files=names.map(name=>{
+  const bytes=fs.readFileSync(path.join(output,name));
+  if(!bytes.length)throw Error(`Empty artifact: ${name}`);
+  fs.writeFileSync(path.join('release',name),bytes);
+  return {name,size:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex')};
+});
+const manifest={format:2,version,tag:process.env.GITHUB_REF_NAME,commit:process.env.GITHUB_SHA,target,autoUpdate,files};
+fs.writeFileSync('release/manifest.json',JSON.stringify(manifest,null,2)+'\n');
+console.log(`Prepared ${target}: ${names.join(', ')}. In-app updates: ${autoUpdate}.`);

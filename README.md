@@ -1,18 +1,21 @@
 # Sahl Video | سهل
 
-A free, open-source video editor for Windows with an Arabic interface. Cut clips, add reusable titles and images, and export up to 4K without a watermark.
+A free, open-source video editor for Windows and macOS with an Arabic interface. Cut clips, add reusable titles and images, and export at the original resolution or lower without a watermark.
 
 [Download for Windows](https://github.com/hmh6a/sahl-video/releases/latest) · [Report an issue](https://github.com/hmh6a/sahl-video/issues) · [Build status](https://github.com/hmh6a/sahl-video/actions/workflows/windows-release.yml)
 
 ## Features
 
+- **Organized workspace:** larger preview, searchable media library with video/image filters, tabbed text controls, adjustable timeline height, and an in-app shortcut guide. UI numbers use English digits.
 - **Simple timeline editing:** split with the scissors tool, delete or reorder clips, scrub through thumbnails, and drag media onto the timeline.
 - **Titles and templates:** multiple text layers with independent timing and placement, font selection, reusable layouts, and entrance animations. Anton is included.
 - **Images and transitions:** insert images between clips or into a video, set their duration, and add picture and audio fades.
 - **Portable projects:** save edits and their media in one folder, move it to another computer, and continue editing.
 - **Recovery:** automatic recovery snapshots every minute, including while exporting.
-- **Export controls:** source resolution by default, selectable output resolution up to 4K, source frame rate, supported GPU encoders or CPU encoding, elapsed time, estimated time remaining, and cancellation.
-- **In-app updates:** automatic checks, a new-version notification, download progress and cancellation, and SHA-256 verification before the downloaded file is made available.
+- **Faster compositing:** static images and title layers are decoded and resized once, then reused at the original output frame rate. Title processing stops after its visible interval. Resolution, encoder quality and audio settings stay unchanged; background thumbnails pause during export.
+- **Export controls:** source resolution by default, only resolutions smaller than the source (including 8K source projects), source frame rate, supported GPU encoders or CPU encoding, elapsed time, estimated time remaining, and cancellation.
+- **Automatic HDR export:** timelines containing PQ or HLG video export as HEVC Main 10 in MP4, preserving HDR and the project resolution/frame rate. The first HDR clip determines the output transfer; SDR clips, images and sRGB titles are converted into that color space before 10-bit compositing. HEVC hardware support is tested separately; unsupported GPUs fall back to CPU without requiring external conversion. SDR-only projects retain H.264 export. HDR playback requires a compatible player/display. Dynamic Dolby Vision/HDR10+ and source mastering metadata are not carried into the edited montage; this is standard PQ/HLG output, not a Dolby Vision export. Thumbnails use SDR tone mapping for ordinary displays.
+- **In-app updates:** automatic checks, a new-version notification, internal downloads with progress and cancellation, checksum verification, and installation with restart. Windows supports direct updates; Mac direct updates require a Developer ID signed release.
 
 ## Download and install
 
@@ -21,15 +24,23 @@ A free, open-source video editor for Windows with an Arabic interface. Cut clips
 3. Run the setup wizard on 64-bit Windows and choose Arabic or English.
 4. Choose who to install for and the installation folder, then install. The wizard creates desktop and Start menu shortcuts and an uninstall entry in Windows Settings. Installing for all users or in a protected folder may require administrator permission.
 
-The installer includes the video tools; Node.js and Python are not required. Uninstalling keeps application data, including recovery snapshots. Saved project folders are independent of the application installation folder.
+Both Windows and Mac installers include FFmpeg and native FFprobe for their architecture. Users do not need FFmpeg, FFprobe, Homebrew, Node.js or Python installed, and editing/exporting works offline. Uninstalling keeps application data, including recovery snapshots. Saved project folders are independent of the application installation folder.
 
-The interface is in Arabic. Start with **استيراد فيديو**, use the scissors to cut, add titles from **الكتابة**, and choose **تصدير** when ready.
+The interface is in Arabic. Start with **استيراد ملفات**, use the scissors to cut, add titles from **الكتابة**, and choose **تصدير** when ready.
 
-Updates are checked at startup and every six hours. You can also select **التحديثات → فحص الآن**. Downloads start only when you choose **تنزيل التحديث**. After downloading, save your project, close Sahl Video, and run the downloaded installer. It remembers the previous installation folder. Installation starts only when you run the wizard.
+For macOS, download `Sahl-Video-<version>-mac-arm64.dmg` for Apple Silicon, or `Sahl-Video-<version>-mac-x64.dmg` for Intel. Open the DMG and drag Sahl Video into Applications. These builds currently have no Apple Developer ID certificate or notarization, so macOS may block opening them; they are not presented as signed releases.
 
-Version **1.0.0** was portable. The next tagged release uses an installer with the same download naming scheme, so the existing updater can download it. After installing, open Sahl Video from its shortcut instead of the old portable EXE. The application keeps the same identity and local data location.
+Updates are checked at startup and every six hours in supported installed builds. **تحديث الآن** downloads to the application's private cache and installs with a restart; there is no Save As dialog or installer file to open. Unsaved changes go through the existing save/discard/cancel dialog. During an export, import or save, the update waits for **إعادة التشغيل والتحديث**. Closing the app alone never silently installs an update.
 
-The earlier experimental release series has been reset. Install **1.0.0** once to receive notifications for subsequent releases; experimental builds do not contain the updater.
+Windows updates use NSIS. Mac direct updates use Squirrel.Mac and require a Developer ID signed release. Unsigned Mac builds show an explanation and disable direct updates; install later DMGs manually until signing is configured. Development (`npm start`) also disables updates. Existing versions with the old download-only updater need one final manual installation of a release containing the new updater; subsequent Windows updates install from within the app.
+
+## Editing shortcuts
+
+Open **مساعدة** in the side rail for the complete list. Use `⌘` on Mac or `Ctrl` on Windows for save (`S`), open (`O`), import (`I`), undo (`Z`), redo (`Shift+Z`), and export (`Shift+E`). Text fields keep their normal editing shortcuts.
+
+Outside input fields, `S` splits at the playhead, `C` toggles the scissors, `V` returns to selection, and `F` fits the entire timeline. Left/right arrows seek one frame; hold Shift to seek one second. Space plays or pauses when focus is on the editing surface. Playback restarts from the beginning when already at the end.
+
+Drag the handle above the timeline to resize it, or focus it and use Up/Down. Double-click it to restore the default height. Timeline height and the active inspector tab are remembered locally without changing the project. The inspector separates text, appearance, timing/animation, and templates; its tabs stay visible while scrolling.
 
 ## Projects and privacy
 
@@ -41,33 +52,38 @@ Editing and rendering happen on your computer. Project files and videos are not 
 
 ## Development
 
-Use Node.js **24.18.0** and npm on Windows.
+Use Node.js **24.18.0** and npm on Windows or macOS.
 
 ```sh
 npm ci
 npm start
 ```
 
-Run the tests and build the Windows setup wizard:
+Local development also runs on macOS. Hardware export uses **Apple · VideoToolbox** on supported Macs, including Apple Silicon; the app verifies it with a real hardware-only encode before offering it. Output bitrate scales with resolution, frame rate and the selected quality. Effects still use the CPU. If no hardware encoder is available, export defaults to CPU. Windows and both Mac architectures are built by the release workflow.
+
+Run the tests and build the installer for the current native platform/architecture:
 
 ```sh
 npm test
 npx electron tests/electron-protocol.cjs
-npm run dist -- --publish never
+npm run dist:release
+npm run verify:package
 ```
 
-Build output is written to `dist/`. Tests cover project portability and recovery, timeline editing, text placement, real video exports, cancellation, update integrity, and tag-based release versioning. Hardware encoding tests are skipped when no supported GPU encoder is available.
+Build output is written to `dist/`. Tests cover project portability and recovery, timeline editing, text placement, real video exports, cancellation, update integrity, and tag-based release versioning. Hardware encoding tests are skipped when no supported GPU encoder is available. The package verifier runs the bundled FFmpeg and FFprobe with an empty PATH, exports a small video and inspects it. On Mac it also verifies native binary architecture and checks for external Homebrew dependencies.
+
+To compare export speed locally against the previous pipeline, run `node scripts/benchmark-export.cjs` (or add `--cpu`). It runs the same 4K60 scene twice per pipeline in alternating order and writes timings to `test-output/export-benchmark/results.json`. Results depend on the hardware and project; the optimization helps most with titles and still images. Regression tests compare every uncompressed frame and audio packet against the previous pipeline, including fades, overlapping titles, cuts, resizing and fractional frame rates.
 
 ## Publishing a release
 
 A release is built and published **only when a version tag is pushed**. Pushing changes to `main` does not start a release, and there is no manual publish button.
 
-Use a new stable tag in the form **`vMAJOR.MINOR.PATCH`**, such as `v1.0.1`. The tag determines the version shown in the app, the release title, and the EXE filename. For example, `v2.4.0` produces version `2.4.0` and `Sahl-Video-2.4.0.exe`; you do not need to edit package version fields yourself.
+Use a new stable tag in the form **`vMAJOR.MINOR.PATCH`**, such as `v1.0.1`. The tag determines the version shown in the app, the release title, and the installer filenames. For example, `v2.4.0` produces version `2.4.0` and `Sahl-Video-2.4.0.exe`; you do not need to edit package version fields yourself.
 
 1. Push changes on a separate branch, open a pull request, and merge it after the required review.
 2. Create the desired version tag on the commit you want to release.
 3. Push that tag to GitHub. Creating it locally alone does not trigger a build.
-4. GitHub Actions tests and builds the tagged code, then publishes its EXE and checksum file if the checks pass.
+4. GitHub Actions tests and builds the tagged code, then publishes Windows EXE, Apple Silicon DMG/ZIP, Intel DMG/ZIP, checksums and applicable update metadata only after all three native jobs pass.
 
 For example, from the commit you want to release:
 
@@ -78,9 +94,21 @@ git push origin v1.0.1
 
 Choose an unused, higher version for each update. Retry failed builds with the same tag; do not move published tags to different commits. The workflow never creates or deletes version tags. In-app update notifications become available after the release is published.
 
+## Optional Apple signing for direct Mac updates
+
+The workflow builds usable artifacts without signing credentials and does not publish `latest-mac.yml` for unsigned builds. To distribute notarized Mac releases with direct updates, configure these repository Actions secrets:
+
+- `MAC_CSC_LINK`: base64-encoded Developer ID Application `.p12` certificate.
+- `MAC_CSC_KEY_PASSWORD`: password for that certificate.
+- `APPLE_ID`: Apple Developer account used for notarization.
+- `APPLE_APP_SPECIFIC_PASSWORD`: app-specific password for notarization.
+- `APPLE_TEAM_ID`: Developer team ID.
+
+Both Mac jobs then sign the app and bundled tools, notarize it, and verify the notarization ticket before publication. Partial signing configuration fails the build. Each architecture is built natively so the FFmpeg and FFprobe binaries match. The publish job validates every artifact's version, commit and SHA-256, validates the update metadata's SHA-512, and merges both signed Mac architectures into one `latest-mac.yml` without overwriting either architecture's entry. It uploads everything before marking the release ready. No credentials are embedded in the application.
+
 ## Contributing
 
-Open an issue with reproduction steps, your Windows version, and the relevant video format. Pull requests are welcome. Avoid committing personal media, saved projects, build outputs, or credentials.
+Open an issue with reproduction steps, your OS version and CPU architecture, and the relevant video format. Pull requests are welcome. Avoid committing personal media, saved projects, build outputs, or credentials.
 
 ## License
 

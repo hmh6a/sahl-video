@@ -1,19 +1,17 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const TL=require('./timeline'),Titles=require('./titles');
+const Resolution=require('./resolution');
 function frameRate(value){const rate=String(value||'30');if(!/^\d+(?:\.\d+)?(?:\/\d+)?$/.test(rate))throw new Error('معدل الإطارات غير صالح.');const [a,b=1]=rate.split('/').map(Number);if(!Number.isFinite(a/b)||a/b<1||a/b>240)throw new Error('معدل الإطارات غير صالح.');return rate;}
 function format(meta){const width=Number(meta?.width),height=Number(meta?.height);if(!Number.isInteger(width)||!Number.isInteger(height)||width<16||height<16||width>8192||height>8192)throw new Error('دقة المشروع غير صالحة.');return {width,height,fps:frameRate(meta.fps)};}
 function outputSize(meta,resolution='source'){
-  const m=format(meta);if(resolution==='source')return {width:Math.ceil(m.width/2)*2,height:Math.ceil(m.height/2)*2};
-  const short=Number(resolution);if(![2160,1440,1080,720,480].includes(short))throw new Error('اختار دقة تصدير صحيحة.');
-  const scale=short/Math.min(m.width,m.height),width=Math.max(2,Math.round(m.width*scale/2)*2),height=Math.max(2,Math.round(m.height*scale/2)*2);
-  if(width>8192||height>8192)throw new Error('هذي الدقة كبيرة لهذي الأبعاد. اختار دقة أصغر.');return {width,height};
+  return Resolution.outputSize(format(meta),resolution);
 }
 function state(raw,assets){
   if(!raw||typeof raw!=='object')throw new Error('ملف المشروع غير صالح.');
   const meta=raw.meta?format(raw.meta):null,clips=raw.clips?.length?TL.validate(meta,{clips:raw.clips},assets):[];
   if(clips.length&&!meta)throw new Error('دقة المشروع مفقودة.');
-  const titles=Titles.normalize(raw.titles||[]),resolution=String(raw.resolution||'source');if(meta)outputSize(meta,resolution);
-  return {meta,clips,titles,cursor:Math.max(0,Math.min(TL.duration(clips),Number(raw.cursor)||0)),selectedClip:Number.isInteger(raw.selectedClip)?Math.max(-1,Math.min(clips.length-1,raw.selectedClip)):-1,selectedTitle:titles.some(t=>t.id===raw.selectedTitle)?raw.selectedTitle:titles[0]?.id||null,selectionKind:raw.selectionKind==='title'?'title':'clip',zoom:Math.max(1,Math.min(100,Number(raw.zoom)||1)),resolution,quality:raw.quality==='maximum'?'maximum':'high',encoder:['cpu','h264_nvenc','h264_amf','h264_qsv'].includes(raw.encoder)?raw.encoder:'gpu-auto'};
+  const titles=Titles.normalize(raw.titles||[]),resolution=Resolution.restore(meta,raw.resolution||'source');if(meta)outputSize(meta,resolution);
+  return {meta,clips,titles,cursor:Math.max(0,Math.min(TL.duration(clips),Number(raw.cursor)||0)),selectedClip:Number.isInteger(raw.selectedClip)?Math.max(-1,Math.min(clips.length-1,raw.selectedClip)):-1,selectedTitle:titles.some(t=>t.id===raw.selectedTitle)?raw.selectedTitle:titles[0]?.id||null,selectionKind:raw.selectionKind==='title'?'title':'clip',zoom:Math.max(1,Math.min(100,Number(raw.zoom)||1)),resolution,quality:raw.quality==='maximum'?'maximum':'high',encoder:['cpu','h264_videotoolbox','h264_nvenc','h264_amf','h264_qsv'].includes(raw.encoder)?raw.encoder:'gpu-auto'};
 }
 function writeProject(file,raw,registry){
   const ids=Array.from(new Set(raw.assetIds||raw.clips.map(c=>c.assetId))),assets={};

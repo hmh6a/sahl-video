@@ -1,4 +1,4 @@
-name: Build Windows release
+name: Build Windows and macOS release
 
 on:
   push:
@@ -9,14 +9,73 @@ permissions:
   contents: read
 
 concurrency:
-  group: windows-release-${{ github.ref }}
+  group: desktop-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Test and build Windows x64
-    runs-on: windows-latest
-    timeout-minutes: 30
+    name: Test and build ${{ matrix.platform }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            arch: x64
+          - os: macos-15
+            platform: darwin
+            arch: arm64
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.18.0'
+          architecture: ${{ matrix.arch }}
+          cache: npm
+      - name: Check native build architecture
+        run: node -e "if(process.platform !== '${{ matrix.platform }}' || process.arch !== '${{ matrix.arch }}') process.exit(1)"
+      - name: Set release version from the pushed tag
+        run: node scripts/set-build-version.cjs
+      - name: Install locked dependencies including bundled video tools
+        run: npm ci
+      - name: Test editing, recovery and real video export
+        run: npm test
+      - name: Test Electron media seeking
+        run: npx electron tests/electron-protocol.cjs
+      - name: Build Windows installer or Mac DMG and update ZIP
+        run: npm run dist:release
+        env:
+          CSC_LINK: ${{ matrix.platform == 'darwin' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'darwin' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.platform == 'darwin' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'darwin' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'darwin' && secrets.APPLE_TEAM_ID || '' }}
+      - name: Verify packaged tools work without system FFmpeg and prepare release
+        run: node scripts/prepare-release.cjs
+      - name: Keep tested artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sahl-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    name: Publish all tested desktop builds
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -25,46 +84,13 @@ jobs:
         with:
           node-version: '24.18.0'
           cache: npm
-      - name: Set release version from the pushed tag
-        run: node scripts/set-build-version.cjs
-      - name: Install locked dependencies
-        run: npm ci
-      - name: Test editing, recovery and real video export
-        run: npm test
-      - name: Test Electron media seeking
-        run: npx electron tests/electron-protocol.cjs
-      - name: Build Windows setup wizard
-        run: npm run dist -- --publish never
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - name: Verify packaged files and prepare download
-        run: node scripts/prepare-release.cjs
-      - name: Keep the tested Windows download
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: sahl-windows-x64
-          path: release/
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
-
-  publish:
-    name: Publish GitHub release
-    needs: build
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+      - name: Install manifest validation tools
+        run: npm ci --ignore-scripts
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: sahl-windows-x64
-          path: release/
-      - name: Upload EXE and publish after successful checks
+          pattern: sahl-*
+          path: release-input/
+      - name: Verify all artifacts, merge architecture metadata and publish
         run: node scripts/publish-release.cjs
         env:
           GH_TOKEN: ${{ github.token }}
