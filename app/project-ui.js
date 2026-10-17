@@ -14,9 +14,9 @@ async function openSavedProject(){
  }catch(e){status('تعذّر فتح المشروع: '+e.message,true);}finally{fileButtons(false);}
 }
 function applyProjectResult(result){
- previewAbort?.abort();frameSerial++;sourceId=null;unsupported=false;unsupportedAssets.clear();thumbCache.clear();
+ previewAbort?.abort();frameSerial++;sourceId=null;unsupported=false;unsupportedAssets.clear();thumbnailQueue.clear();previewLoad.cancel();
  const s=result.state;assets=result.assets;meta=s.meta;clips=s.clips;cursor=s.cursor;selectedClip=s.selectedClip;selectionKind=s.selectionKind;titles=s.titles;selectedTitle=s.selectedTitle;history=[];future=[];razor=false;
- $('zoom').value=s.zoom;$('resolution').value=s.resolution;$('quality').value=s.quality;if([...$('encoder').options].some(o=>o.value===s.encoder))$('encoder').value=s.encoder;
+ $('zoom').value=s.zoom;updateExportInfo(s.resolution);$('quality').value=s.quality;if([...$('encoder').options].some(o=>o.value===s.encoder))$('encoder').value=s.encoder;
  $('badge').textContent=meta?`${meta.width} × ${meta.height}`:'4K READY';projectFile=result.path;projectDirty=!!result.dirty;projectLabel(result.name);
  fillTitleFields();draw();renderTitleList();renderAssets();renderTimeline();seekTo(cursor);updateExportInfo();$('show-output').hidden=true;
 }

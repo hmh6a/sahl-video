@@ -5,18 +5,19 @@
   let state = { phase: 'idle' };
   function render(next) {
     state = next;
-    const active = next.phase === 'downloading', found = next.phase === 'available', ready = next.phase === 'downloaded';
+    for (const selector of ['.studio','.topbar']) { const area=document.querySelector(selector); if(area)area.inert=next.phase==='installing'; }
+    const active = next.phase === 'downloading', installing = next.phase === 'installing', found = next.canDownload && !active && !installing, ready = next.canInstall && !installing;
     button.classList.toggle('has-update', found || ready);
     button.textContent = active ? `تنزيل التحديث ${next.percent}%` : found ? `تحديث جديد ${next.version}` : ready ? 'التحديث جاهز' : 'التحديثات';
     byId('app-version').textContent = next.currentVersion || '—';
     byId('installed-version').textContent = next.currentVersion || '—';
     byId('update-version').textContent = next.version ? `الإصدار ${next.version}` : '';
-    byId('update-message').textContent = next.message || ({ idle: 'افحص إذا تتوفر نسخة جديدة من سهل.', checking: 'جاري فحص التحديثات…', current: 'عندك أحدث إصدار.', available: 'يتوفر تحديث جديد. نزّل ملف التثبيت وكمل شغلك إلى أن تكون جاهز للتحديث.', downloading: 'جاري تنزيل ملف التثبيت والتحقق من سلامته…', downloaded: 'اكتمل تنزيل المُثبّت. احفظ مشروعك وأغلق سهل، ثم افتح الملف واتبع خطوات التثبيت. تقدر تختار مكان تثبيت البرنامج.' }[next.phase] || 'تعذّر فحص التحديثات.');
+    byId('update-message').textContent = next.message || ({ idle: 'افحص إذا تتوفر نسخة جديدة من سهل.', checking: 'جاري فحص التحديثات…', current: 'عندك أحدث إصدار.', available: 'يتوفر تحديث جديد. اضغط تحديث الآن لتنزيله وتثبيته داخل البرنامج.', downloading: 'جاري تجهيز التحديث والتحقق من سلامته…', downloaded: 'التحديث جاهز. اضغط إعادة التشغيل والتحديث؛ ما تحتاج تفتح أي ملف.', installing: 'جاري تثبيت التحديث وإعادة تشغيل سهل…' }[next.phase] || 'تعذّر فحص التحديثات.');
     byId('update-message').classList.toggle('error', next.phase === 'error');
-    byId('check-updates').disabled = active || next.phase === 'checking';
+    byId('check-updates').disabled = active || installing || next.phase === 'checking' || next.phase === 'disabled';
     byId('download-update').hidden = !found;
     byId('cancel-update').hidden = !active;
-    byId('show-update').hidden = !ready;
+    byId('install-update').hidden = !ready;
     byId('update-progress').hidden = !active;
     byId('update-progress').value = next.percent || 0;
   }
@@ -29,7 +30,7 @@
   byId('check-updates').onclick = () => action('checkUpdates');
   byId('download-update').onclick = () => action('downloadUpdate');
   byId('cancel-update').onclick = () => action('cancelUpdate');
-  byId('show-update').onclick = () => action('showUpdate');
+  byId('install-update').onclick = () => action('installUpdate');
   api.onUpdate(render);
   action('updateStatus');
   setTimeout(() => action('checkUpdates'), 4000);

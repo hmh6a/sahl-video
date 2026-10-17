@@ -3,12 +3,13 @@
     if(signal?.aborted)throw new Error('canceled');
     if(video.readyState<1)await wait(video,'loadedmetadata',signal);
     if(signal?.aborted)throw new Error('canceled');
-    if(!video.seeking&&Math.abs(video.currentTime-target)<.003)return;
+    if(!video.seeking&&Math.abs(video.currentTime-target)<.003){if(video.readyState<2)await wait(video,'loadeddata',signal);return;}
     // Attach first: short cached seeks can complete immediately.
     const ready=wait(video,'seeked',signal);video.currentTime=target;await ready;
+    if(video.readyState<2)await wait(video,'loadeddata',signal);
     if(Math.abs(video.currentTime-target)>.15)throw new Error('تعذّر الوصول للمكان المحدد بالفيديو.');
   }
-  function wait(video,event,signal){return new Promise((resolve,reject)=>{
+  function wait(video,event,signal){if(signal?.aborted)return Promise.reject(new Error('canceled'));return new Promise((resolve,reject)=>{
     const cleanup=()=>{clearTimeout(timer);video.removeEventListener(event,done);video.removeEventListener('error',fail);signal?.removeEventListener('abort',cancel);};
     const done=()=>{cleanup();resolve();},fail=()=>{cleanup();reject(new Error('تعذّر قراءة الفيديو.'));},cancel=()=>{cleanup();reject(new Error('canceled'));};
     const timer=setTimeout(()=>{cleanup();reject(new Error('الانتقال أخذ وقت طويل. جرّب مكان آخر.'));},20000);

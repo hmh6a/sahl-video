@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
 const Project=require('../app/project'),TL=require('../app/timeline'),Titles=require('../app/titles'),Animation=require('../app/animation'),Title=require('../app/title-model'),{exportArgs,inspect}=require('../app/export'),{MediaLibrary}=require('../app/library');
-const ffmpeg=require('ffmpeg-static'),ffprobe=require('ffprobe-static').path,dir=path.resolve('test-output');
+const ffmpeg=require('ffmpeg-static'),ffprobe=require('@ffprobe-installer/ffprobe').path,dir=path.resolve('test-output');
 function run(args){return execFileSync(ffmpeg,['-hide_banner','-loglevel','error',...args],{windowsHide:true,timeout:90000,maxBuffer:16*1024*1024});}
 function probe(file){return inspect(JSON.parse(execFileSync(ffprobe,['-v','error','-show_format','-show_streams','-of','json',file],{windowsHide:true})));}
 test('project round trip retains multi-source cuts, text timing/placement/animation, output settings and relative sources',()=>{
@@ -8,6 +8,7 @@ test('project round trip retains multi-source cuts, text timing/placement/animat
  const assets={a:{kind:'video',path:video,meta:{width:3840,height:2160,duration:10,fps:'120/1'}},b:{kind:'image',path:photo,meta:{width:1000,height:1000,duration:5,fps:'30'}}};
  const raw={meta:assets.a.meta,assetIds:['a','b'],clips:[{assetId:'a',start:1,end:3,transition:'fade'},{assetId:'b',start:0,end:2,transition:'fade'},{assetId:'a',start:6,end:9}],titles:Titles.normalize([{title:'العنوان',titleStart:1,titleDuration:2,position:'top-right',animation:'slide-left',template:'neon',font:'Tahoma'},{title:'ثاني',titleStart:4,textX:28,textY:40,position:'custom',animation:'none',template:'banner'}]),cursor:4.2,selectedClip:1,selectionKind:'title',zoom:40,encoder:'h264_nvenc',resolution:'1080',quality:'maximum'};raw.selectedTitle=raw.titles[1].id;
  const saved=Project.writeProject(file,raw,assets),loaded=Project.readProject(file),restored=Project.state(loaded.raw,assets);assert.deepEqual(restored,Project.state(raw,assets));assert.equal(saved.assets[1].relativePath,'صورة.png');assert.equal(loaded.sources[0].resolved,video);
+ const macFile=path.join(folder,'mac.sahl');Project.writeProject(macFile,{...raw,encoder:'h264_videotoolbox'},assets);assert.equal(Project.state(Project.readProject(macFile).raw,assets).encoder,'h264_videotoolbox');
  // The project and its media may move together: prefer the relative reference.
  const moved=path.join(folder,'moved');fs.mkdirSync(moved);for(const name of ['ترتيبي.sahl','source.mp4','صورة.png'])fs.copyFileSync(path.join(folder,name),path.join(moved,name));assert.equal(Project.readProject(path.join(moved,'ترتيبي.sahl')).sources[1].resolved,path.join(moved,'صورة.png'));
  const missing=JSON.parse(fs.readFileSync(file));missing.assets[1].path=path.join(folder,'missing.png');missing.assets[1].relativePath='missing.png';const mf=path.join(folder,'missing.sahl');fs.writeFileSync(mf,JSON.stringify(missing));assert.equal(Project.readProject(mf).sources[1].resolved,null);
@@ -27,7 +28,7 @@ test('video + image + different silent video export with transitions, audio and 
  run(['-y','-f','lavfi','-i','color=c=yellow:s=640x360','-frames:v','1',image]);
  const library=new MediaLibrary(ffmpeg,ffprobe),result=await library.import([input,image,portrait]);assert.equal(result.errors.length,0);assert.equal(result.assets.length,3);const [a,b,c]=result.assets;
  const clips=[{assetId:a.id,start:0,end:1,transition:'fade'},{assetId:b.id,start:0,end:1.5,transition:'fade'},{assetId:c.id,start:0,end:.8,transition:'none'}];
- execFileSync(ffmpeg,exportArgs(library.assets,[],out,a,{clips,encoder:'cpu',resolution:'720'}),{windowsHide:true,timeout:90000,stdio:'pipe'});const output=probe(out);assert.equal(output.width,1280);assert.equal(output.height,720);assert.equal(output.fps,'30/1');assert.equal(output.audio,true);assert.ok(Math.abs(output.duration-3.3)<.07);
+ execFileSync(ffmpeg,exportArgs(library.assets,[],out,{...a,width:1280,height:720},{clips,encoder:'cpu',resolution:'720'}),{windowsHide:true,timeout:90000,stdio:'pipe'});const output=probe(out);assert.equal(output.width,1280);assert.equal(output.height,720);assert.equal(output.fps,'30/1');assert.equal(output.audio,true);assert.ok(Math.abs(output.duration-3.3)<.07);
  const pixel=(t,x=600,y=400)=>run(['-ss',String(t),'-i',out,'-frames:v','1','-vf',`crop=2:2:${x}:${y},format=rgb24`,'-f','rawvideo','pipe:1']);
  const red=pixel(.5),yellow=pixel(1.6),navy=pixel(2.95),border=pixel(2.95,10);assert.ok(red[0]>180&&red[1]<50);assert.ok(yellow[0]>180&&yellow[1]>180&&yellow[2]<50);assert.ok(navy[2]>80&&navy[0]<40);assert.ok(Math.max(...border)<20,'portrait padded, not stretched');
  assert.ok(Math.max(...pixel(1))<20,'image entrance transition');assert.ok(Math.max(...pixel(2.5))<30,'video entrance transition');

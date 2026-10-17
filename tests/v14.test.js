@@ -10,7 +10,7 @@ test('local streaming returns actual seek bytes and supports suffix ranges',asyn
  assert.equal(byteRange('bytes=5-3',16),null);assert.equal(byteRange('bytes=0-1,3-4',16),null);
 });
 test('play waits for seek completion and an old request can be canceled',async()=>{
- class Video extends EventTarget{readyState=1;seeking=false;time=0;get currentTime(){return this.time;}set currentTime(t){this.seeking=true;setTimeout(()=>{this.time=t;this.seeking=false;this.dispatchEvent(new Event('seeked'));},20);}}
+ class Video extends EventTarget{readyState=1;seeking=false;time=0;get currentTime(){return this.time;}set currentTime(t){this.seeking=true;setTimeout(()=>{this.time=t;this.seeking=false;this.readyState=2;this.dispatchEvent(new Event('seeked'));},20);}}
  const v=new Video();let ready=false;const done=seekReady(v,45).then(()=>{ready=true;});assert.equal(ready,false);assert.equal(v.currentTime,0);await done;assert.equal(v.currentTime,45);
  const abort=new AbortController(),pending=seekReady(v,20,abort.signal);abort.abort();await assert.rejects(pending,/canceled/);
 });

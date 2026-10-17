@@ -20,3 +20,5 @@ dist-1.8/
 /media/
 /dist-*/
 /release/
+
+/release-input/

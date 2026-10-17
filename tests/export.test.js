@@ -4,14 +4,14 @@ const {execFileSync}=require('node:child_process');
 const fs=require('node:fs');
 const path=require('node:path');
 const {inspect,exportArgs}=require('../app/export');
-const ffmpeg=require('ffmpeg-static'),ffprobe=require('ffprobe-static').path;
+const ffmpeg=require('ffmpeg-static'),ffprobe=require('@ffprobe-installer/ffprobe').path;
 const dir=path.resolve('test-output');fs.mkdirSync(dir,{recursive:true});
 function run(args){return execFileSync(ffmpeg,['-hide_banner','-loglevel','error',...args],{windowsHide:true,timeout:180000,maxBuffer:8*1024*1024});}
 function probe(p){return JSON.parse(execFileSync(ffprobe,['-v','error','-show_format','-show_streams','-of','json',p],{windowsHide:true}));}
 test('rotation and HDR metadata are detected',()=>{
  const info=inspect({streams:[{codec_type:'video',width:3840,height:2160,side_data_list:[{rotation:90}],color_transfer:'smpte2084',avg_frame_rate:'60000/1001',duration:'6'}]});
  assert.equal(info.width,2160);assert.equal(info.height,3840);assert.equal(info.hdr,true);
- assert.throws(()=>exportArgs('a',null,'b',info,{start:0,end:1}),/HDR/);
+ const args=exportArgs('a',null,'b',info,{start:0,end:1});assert.ok(args.includes('libx265'));assert.ok(args.includes('smpte2084'));assert.equal(info.color.transfer,'smpte2084');
 });
 test('reject invalid trims and keep source frame rate unforced',()=>{
  const meta={duration:10,width:1920,height:1080,fps:'60/1'};for(const opts of [{start:-1,end:2},{start:4,end:2},{start:0,end:11},{start:NaN,end:2}])assert.throws(()=>exportArgs('a',null,'b',meta,opts));
