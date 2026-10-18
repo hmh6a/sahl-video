@@ -42,6 +42,7 @@ function updateButtons(){
  for(const id of ['razor','split'])$(id).disabled=!has||busy;
  $('delete').disabled=busy||(selectionKind==='title'?!currentTitle():!selected);$('undo').disabled=!history.length||busy;$('redo').disabled=!future.length||busy;
  $('reset').disabled=!selected||busy;$('seek').disabled=!has||busy;$('play').disabled=!has||unsupported||busy;
+ $('stage').classList.toggle('preview-playable',!$('play').disabled);
  const titleOK=titles.every(t=>!t.enabled||(Number.isFinite(t.titleStart)&&t.titleStart>=0&&Number.isFinite(t.titleDuration)&&t.titleDuration>=.1));
  $('export').disabled=!has||busy||$('encoder').value==='gpu-auto'||!titleOK;$('transition').disabled=busy;
  const blocker=$('export-blocker');if(blocker){blocker.textContent=!has?'أضف فيديو أو صورة للشريط حتى تقدر تصدّر.':!titleOK?'راجع توقيت النصوص: البداية من 0 والمدة 0.1 ثانية أو أكثر.':$('encoder').value==='gpu-auto'?'جاري فحص كارت الشاشة. تقدر تختار المعالج CPU.':'';blocker.hidden=busy||!blocker.textContent;}
@@ -131,6 +132,11 @@ $('play').onclick=async()=>{
  cancelAnimationFrame(seekRaf);seekRaf=null;previewAbort?.abort();const at=TL.locate(clips,cursor),controller=new AbortController();playbackAbort=controller;setPlayIcon(true);
  try{await playSegment(at.index,at.local,controller);if(controller.signal.aborted)return;playing=true;raf=requestAnimationFrame(tick);}catch(e){if(!controller.signal.aborted)status(e.message,true);}
 };
+// Bind to the media itself so selecting or dragging a title never toggles playback.
+for(const media of [video,$('still')]){
+ media.title='اضغط للتشغيل أو الإيقاف المؤقت';
+ media.addEventListener('click',()=>{$('play').click();});
+}
 video.addEventListener('error',()=>{const a=assets.find(a=>a.id===sourceId);if(!a||a.kind!=='video'||!video.getAttribute('src'))return;unsupportedAssets.add(a.id);pause();unsupported=true;video.hidden=true;$('preview-note').textContent='معاينة لقطات';frame(a,TL.locate(clips,cursor)?.source||0);updateButtons();status('هذا الترميز يُعرض كلقطات. القص والانتقالات تعمل بالتصدير.');});
 let bufferingToken=null;
 video.addEventListener('waiting',()=>{if(playing&&!segmentPending)bufferingToken=previewLoad.start();});
