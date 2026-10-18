@@ -5,6 +5,7 @@ function setExportPresentation(active,details){
   const changed=dialog.classList.contains('is-exporting')!==active;
   for(const animation of exportViewAnimations)animation.cancel();exportViewAnimations=[];
   if(active){
+    resetExportTiming();
     for(const key of ['resolution','fps','duration','encoder','quality','format'])$('render-'+key).textContent=details[key];
     $('export-status').textContent='';$('export-status').classList.toggle('error',false);
     showExportTiming({elapsedSeconds:0,phase:'starting'});
