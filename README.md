@@ -8,6 +8,10 @@ A free, open-source video editor for Windows and macOS with an Arabic interface.
 
 - **Organized workspace:** larger preview, searchable media library with video/image filters, tabbed text controls, adjustable timeline height, and an in-app shortcut guide. UI numbers use English digits.
 - **Simple timeline editing:** split with the scissors tool, delete or reorder clips, scrub through thumbnails, and drag media onto the timeline.
+- **Independent audio:** import music or recorded commentary into up to eight tracks; trim, move, duplicate, adjust gain/fades, mute or solo tracks, and extract linked video sound. Cached waveforms are generated in the background.
+- **Timeline tools:** multiselection, internal copy/paste, duplicate, edge trimming, named markers, snapping, track locks, and gap/ripple audio deletion, with grouped undo.
+- **Clip audio:** mute, adjust volume from 0–200%, and set independent audio fades. Playback includes a level meter and a soft ceiling when amplifying; exported audio uses the same gain and ceiling curve.
+- **Canvas and framing:** choose source, landscape 16:9, portrait 9:16 or square dimensions, then fit/fill, zoom, move, rotate or flip each clip. Framing works with images and videos, supports undo, and is saved with the project.
 - **Titles and templates:** multiple text layers with independent timing and placement, font selection, reusable layouts, and entrance animations. Anton is included.
 - **Images and transitions:** insert images between clips or into a video, set their duration, and add picture and audio fades.
 - **Portable projects:** save edits and their media in one folder, move it to another computer, and continue editing.
@@ -28,11 +32,19 @@ Both Windows and Mac installers include FFmpeg and native FFprobe for their arch
 
 The interface is in Arabic. Start with **استيراد ملفات**, use the scissors to cut, add titles from **الكتابة**, and choose **تصدير** when ready.
 
+Select a timeline clip and open **القطعة والمشروع** in the properties panel to change its audio or framing. Choose **تحريك الصورة بالسحب في المعاينة** to drag the picture inside the canvas. Canvas resolution is independent of aspect ratio; enlarging the canvas does not add source detail. Audio fades are limited to half the clip duration, and a split preserves fades only at the original outer edges. The level meter measures the combined playback audio, while the controls edit the selected clip.
+
 For macOS, download `Sahl-Video-<version>-mac-arm64.dmg` for Apple Silicon, or `Sahl-Video-<version>-mac-x64.dmg` for Intel. Open the DMG and drag Sahl Video into Applications. These builds currently have no Apple Developer ID certificate or notarization, so macOS may block opening them; they are not presented as signed releases.
 
 Updates are checked at startup and every six hours in supported installed builds. **تحديث الآن** downloads to the application's private cache and installs with a restart; there is no Save As dialog or installer file to open. Unsaved changes go through the existing save/discard/cancel dialog. During an export, import or save, the update waits for **إعادة التشغيل والتحديث**. Closing the app alone never silently installs an update.
 
 Windows updates use NSIS. Mac direct updates use Squirrel.Mac and require a Developer ID signed release. Unsigned Mac builds show an explanation and disable direct updates; install later DMGs manually until signing is configured. Development (`npm start`) also disables updates. Existing versions with the old download-only updater need one final manual installation of a release containing the new updater; subsequent Windows updates install from within the app.
+
+Use **♫** to import music or recorded commentary, then select its timeline piece to open **الصوت**. Audio tracks allow gaps and overlaps; the main picture track remains a contiguous sequence. The export ends with the main picture track and crops any audio beyond that end. Add a video or still before inserting audio. Drag an audio body to move it, its edges to trim it, or use numeric properties; selected audio pieces move together. Move a piece between tracks using its destination selector.
+
+**فصل الصوت** creates a linked audio track and mutes the original selected video pieces. Linked sound follows parent trims, splits, moves and deletion; **فك الربط** makes it independent. Linked audio stays inside its parent interval. Titles can also be bound to a picture clip using the binding selector. Music and titles without links keep their project time. Locked linked tracks block parent edits until unlocked. Track locking protects edits; mute and solo remain usable.
+
+Use Shift-click for a range of picture clips, Ctrl/Cmd-click to toggle individual items, or Shift-drag empty timeline space for marquee selection. Ctrl/Cmd+C, V and D copy, paste and duplicate within the current project, including linked material. **M** creates a named marker (double-click a marker to edit or delete); **N** toggles snapping to the playhead, clip/title/audio edges and markers. Audio deletion offers **إبقاء الفراغ** and **إغلاق الفراغ**; main picture deletion always closes the gap. Clipboard, grouped deletes, reorders and continuous drags each undo in one step. Scroll the timeline vertically or enlarge it with its top divider to see additional tracks. The current limits are 64 picture pieces, 64 audio pieces, 8 audio tracks and 256 markers. Microphone recording is not included.
 
 ## Editing shortcuts
 
@@ -45,6 +57,8 @@ Drag the handle above the timeline to resize it, or focus it and use Up/Down. Do
 ## Projects and privacy
 
 Use **حفظ مع الملفات** to create a project folder containing a `.sahl` file and a `media` folder. Move the whole folder to keep its media available. Original files are copied without re-encoding.
+
+New saves use project format version 3 to preserve stable clip IDs, independent audio, links, track flags, markers and framing settings. Version 1 and 2 projects still open. When replacing an older manifest, the app first keeps its original bytes in a `.v1-backup` or `.v2-backup` file alongside it; existing backups are never overwritten. Older app versions cannot open version 3 projects. The project-format version is separate from the app release version.
 
 Automatic recovery stores the latest edits locally every minute. Newly imported media remains linked to its original location until you save with files, and edits made since the last recovery snapshot may be lost after a crash.
 
@@ -66,6 +80,8 @@ Run the tests and build the installer for the current native platform/architectu
 ```sh
 npm test
 npx electron tests/electron-protocol.cjs
+npx electron tests/electron-clip-controls.cjs
+npx electron tests/electron-audio-tracks.cjs
 npm run dist:release
 npm run verify:package
 ```

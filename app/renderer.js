@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 const video=$('video'),canvas=$('overlay');
-let meta,template='gaming',busy=false,unsupported=false,frameTimer,frameSerial=0,titleBounds=null;
+let meta,sourceMeta=null,canvasMode='source',template='gaming',busy=false,unsupported=false,frameTimer,frameSerial=0,titleBounds=null;
 let titles=[SahlTitles.create({title:'عنوان الفيديو',subtitle:'وصف قصير'})],selectedTitle=titles[0].id;
 const titleLayers=new Map();
 function currentTitle(){return titles.find(t=>t.id===selectedTitle)||null;}
@@ -8,7 +8,7 @@ function status(text,error=false){$('status').textContent=text;$('status').class
 function seconds(t){t=Math.max(0,Number(t)||0);const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=Math.floor(t%60);return(h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');}
 function fps(s){const[a,b]=String(s||'30').split('/').map(Number),n=b?a/b:a;return Number.isFinite(n)&&n>0?n:30;}
 function settings(){return {template,animation:$('animation').value,title:$('title').value,subtitle:$('subtitle').value,position:$('position').value,accent:$('accent').value,size:Number($('size').value),font:$('font').value,weight:$('font-weight').value,titleStart:Number($('title-start').value),titleDuration:Number($('title-duration').value),textX:Number($('text-x').value),textY:Number($('text-y').value),enabled:$('enabled').checked};}
-function commitTitle(){const t=currentTitle();if(t)Object.assign(t,settings());}
+function commitTitle(){const t=currentTitle();if(t){Object.assign(t,settings());if(t.link){const parent=SahlAudioTracks.offsets(clips).get(t.link.clipId);if(parent){t.titleStart=Math.max(parent.at,t.titleStart);t.link.offset=t.titleStart-parent.at;$('title-start').value=t.titleStart;}}}}
 function drawTitle(target,t){
   const w=meta?.width||1920,h=meta?.height||1080;target.width=w;target.height=h;const c=target.getContext('2d');
   if(!t.enabled||(!t.title.trim()&&!t.subtitle.trim()))return null;
@@ -44,7 +44,7 @@ function draw(){
 function layoutCanvas(){
   if(!meta)return;const r=$('stage').getBoundingClientRect(),scale=Math.min(r.width/meta.width,r.height/meta.height);
   for(const layer of titleLayers.values()){layer.canvas.style.width=meta.width*scale+'px';layer.canvas.style.height=meta.height*scale+'px';}
-  for(const el of [video,$('still'),$('fallback')]){el.style.width=meta.width*scale+'px';el.style.height=meta.height*scale+'px';}
+  if(typeof layoutPicture==='function')layoutPicture(scale);else for(const el of [video,$('still'),$('fallback')]){el.style.width=meta.width*scale+'px';el.style.height=meta.height*scale+'px';}
   const selection=$('title-selection'),t=currentTitle();if(titleBounds){selection.style.left=(r.width-meta.width*scale)/2+titleBounds.x*scale+'px';selection.style.top=(r.height-meta.height*scale)/2+titleBounds.y*scale+'px';selection.style.width=titleBounds.width*scale+'px';selection.style.height=titleBounds.height*scale+'px';}
   const animationActive=t&&cursor<t.titleStart+Math.min(.5,t.titleDuration/3);
   selection.hidden=!titleBounds||!t?.enabled||Number(titleLayers.get(selectedTitle)?.canvas.style.opacity||0)===0||busy||animationActive||(typeof playing!=='undefined'&&playing)||(typeof selectionKind!=='undefined'&&selectionKind!=='title');

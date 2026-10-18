@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('sahl',{
  encoders:()=>ipcRenderer.invoke('encoders'),fonts:()=>ipcRenderer.invoke('fonts'),
  onImportProgress:fn=>ipcRenderer.on('import-progress',(_,value)=>fn(value)),
  choose:kind=>ipcRenderer.invoke('choose-media',kind),importFiles:files=>ipcRenderer.invoke('import-media',Array.from(files).map(file=>webUtils.getPathForFile(file)).filter(Boolean)),
+ waveform:id=>ipcRenderer.invoke('waveform',id),
  thumbnail:(id,t)=>ipcRenderer.invoke('thumbnail',id,t),frame:(id,t)=>ipcRenderer.invoke('frame',id,t),
  cancelProjectSave:()=>ipcRenderer.invoke('cancel-project-save'),onProjectCopy:fn=>ipcRenderer.on('project-copy',(_,value)=>fn(value)),
  listRecovery:()=>ipcRenderer.invoke('list-recovery'),restoreRecovery:(id,state)=>ipcRenderer.invoke('restore-recovery',id,state),onAutosave:fn=>ipcRenderer.on('autosave',(_,value)=>fn(value)),

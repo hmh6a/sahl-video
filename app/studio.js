@@ -9,7 +9,7 @@ function updateExportColor(){
  $('export-format').textContent=hdr?'MP4 · HDR · HEVC 10-bit · بدون علامة مائية':'MP4 · بدون علامة مائية';
 }
 let availableEncoders=[];
-function showProperties(section){document.body.classList.remove('properties-hidden');$('toggle-properties').setAttribute('aria-expanded','true');if(section&&typeof setInspectorTab==='function')setInspectorTab(section);layoutCanvas();}
+function showProperties(section){if(section){selectionKind='title';if(typeof refreshClipControls==='function')refreshClipControls();}document.body.classList.remove('properties-hidden');$('toggle-properties').setAttribute('aria-expanded','true');if(section&&typeof setInspectorTab==='function')setInspectorTab(section);layoutCanvas();}
 function openExport(){updateExportInfo();updateButtons();if($('export-duration'))$('export-duration').textContent=seconds(total());$('export-dialog').showModal();$('export-status').textContent=meta?'':'استورد فيديو أولاً حتى تقدر تصدّره.';}
 $('open-export').onclick=$('right-export').onclick=openExport;
 $('close-export').onclick=()=>{if(!busy)$('export-dialog').close();};

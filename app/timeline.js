@@ -1,7 +1,9 @@
 (function(root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.SahlTimeline = factory();
-})(typeof globalThis !== 'undefined' ? globalThis : this, function() {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./clip-settings'));
+  else root.SahlTimeline = factory(root.SahlClipSettings);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function(Settings) {
+  const uid=()=>globalThis.crypto?.randomUUID?.()||'clip-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+  function ids(clips){const used=new Set();return clips.map((c,i)=>{let id=c.id??'main-'+i;if(typeof id!=='string'||!/^[\w-]{1,80}$/.test(id)||used.has(id))throw new Error('معرّف قطعة مكرر أو غير صالح.');used.add(id);return {...c,id};});}
   function duration(clips) { return clips.reduce((n,c)=>n+c.end-c.start,0); }
   function locate(clips, t) {
     let offset=0;
@@ -17,7 +19,7 @@
     const c=clips[at.index];
     if(at.source-c.start<min-1e-6||c.end-at.source<min-1e-6)return null;
     const next=clips.map(x=>({...x}));
-    next.splice(at.index,1,{...c,end:at.source,transition:'none'},{...c,start:at.source});
+    next.splice(at.index,1,{...c,end:at.source,transition:'none',...(c.audio?{audio:{...c.audio,fadeOut:0}}:{})},{...c,...(c.id?{id:uid(),splitFrom:c.id}:{}),start:at.source,...(c.audio?{audio:{...c.audio,fadeIn:0}}:{})});
     return {clips:next,index:at.index+1};
   }
   function remove(clips,index) {
@@ -50,13 +52,14 @@
   function validate(meta,opts,assets) {
     const clips=opts.clips===undefined?[{start:Number(opts.start),end:Number(opts.end),transition:'none'}]:opts.clips;
     if(!Array.isArray(clips)||!clips.length||clips.length>64)throw new Error('أضف قطعة فيديو واحدة على الأقل؛ الحد الحالي 64 قطعة.');
-    return clips.map(c=>{
+    return ids(clips).map(c=>{
       const asset=assets?.[c.assetId];if(assets&&!asset)throw new Error('ملف من ملفات المشروع مفقود.');
+      if(asset?.kind==='audio')throw new Error('أضف الصوت إلى مسار صوت مستقل.');
       const kind=asset?.kind||'video',limit=kind==='image'?86400:(asset?.meta||meta).duration;
       if(typeof c.start!=='number'||typeof c.end!=='number'||!Number.isFinite(c.start)||!Number.isFinite(c.end)||c.start<0||c.end>limit+.01||c.end-c.start<.099)throw new Error('حدد بداية ونهاية صحيحة للقص.');
       if(c.transition&&!['none','fade'].includes(c.transition))throw new Error('انتقال غير صالح.');
-      return {start:c.start,end:c.end,transition:c.transition||'none',...(assets?{assetId:c.assetId,kind}:c.assetId?{assetId:c.assetId,kind:c.kind||'video'}:{})};
+      return {id:c.id,start:c.start,end:c.end,transition:c.transition||'none',...(c.audio!==undefined?{audio:Settings.audio(c.audio)}:{}),...(c.transform!==undefined?{transform:Settings.transform(c.transform)}:{}),...(assets?{assetId:c.assetId,kind}:c.assetId?{assetId:c.assetId,kind:c.kind||'video'}:{})};
     });
   }
-  return {duration,locate,split,remove,fadeLength,gain,validate,insert};
+  return {ids,uid,duration,locate,split,remove,fadeLength,gain,validate,insert};
 });

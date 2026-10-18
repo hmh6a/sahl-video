@@ -6,7 +6,7 @@ const {detectEncoders}=require('./encoding'),{MediaLibrary}=require('./library')
 const {RecoveryStore,AutoSaver}=require('./recovery'),{ExportProgress}=require('./export-progress');
 const appPackage=require('../package.json'),appVersion=appPackage.version,{Updates}=require('./updates');
 const updates=new Updates(appVersion,{enabled:!!app.isPackaged&&(os.platform()!=='darwin'||appPackage.sahlAutoUpdate===true),disabledReason:!app.isPackaged?'التحديث المباشر متاح في النسخة المثبّتة.':os.platform()==='darwin'&&appPackage.sahlAutoUpdate!==true?'هذه نسخة ماك غير موقّعة. التحديث المباشر يحتاج إصداراً موقّعاً من المطوّر.':undefined,notify:value=>{if(value.phase==='error'&&installingUpdate){installingUpdate=false;closing=false;}message('update-status',value);}});
-const exec=promisify(execFile),unpack=p=>p.replace('app.asar','app.asar.unpacked'),ffmpeg=unpack(require('ffmpeg-static')),ffprobe=unpack(require('@ffprobe-installer/ffprobe').path),library=new MediaLibrary(ffmpeg,ffprobe);
+const exec=promisify(execFile),unpack=p=>p.replace('app.asar','app.asar.unpacked'),ffmpeg=unpack(require('ffmpeg-static')),ffprobe=unpack(require('@ffprobe-installer/ffprobe').path),library=new MediaLibrary(ffmpeg,ffprobe,{waveformDirectory:path.join(app.getPath('userData'),'waveforms')});
 let win,active,lastOutput,encoderPromise,fontsPromise,recovery,autoSaver,projectPath=null,projectState=null,dirty=false,closing=false,checkingClose=false,projectPortable=false,saving=false,projectAbort=null,importingMedia=false,opening=false,installingUpdate=false;
 function capabilities(){return encoderPromise ||=detectEncoders(ffmpeg);}
 function message(channel,value){if(win&&!win.isDestroyed())win.webContents.send(channel,value);}
@@ -16,9 +16,10 @@ async function cancelExport(){
   if(!job.canceled){job.canceled=true;try{const killed=job.process.kill('SIGKILL');if(!killed&&job.process.exitCode===null&&job.process.signalCode===null){job.canceled=false;return {error:'تعذّر إيقاف الرندرة. حاول الإلغاء مرة ثانية.'};}}catch(e){job.canceled=false;return {error:'تعذّر إيقاف الرندرة: '+e.message};}}
   await job.done;return {canceled:true};
 }
-protocol.registerSchemesAsPrivileged([{scheme:'sahl-media',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true}}]);
+protocol.registerSchemesAsPrivileged([{scheme:'sahl-media',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true,corsEnabled:true}}]);
 function title(){win?.setTitle((dirty?'● ':'')+(projectPath?path.basename(projectPath)+' — ':'')+'سهل — Sahl Video '+appVersion);}
-const mediaFilter=[{name:'Video & images',extensions:['mp4','mov','mkv','webm','m4v','avi','mts','png','jpg','jpeg','webp','bmp']}];
+const mediaFilter=[{name:'Video & images',extensions:['mp4','mov','mkv','webm','m4v','avi','mts','png','jpg','jpeg','webp','bmp','mp3','wav','m4a','aac','flac','ogg','opus']}];
+const audioFilter=[{name:'Audio',extensions:['mp3','wav','m4a','aac','flac','ogg','opus']}];
 async function saveProject(raw,saveAs=false){
   if(saving||importingMedia)throw new Error('انتظر انتهاء الحفظ أو استيراد الملفات.');saving=true;
   try{
@@ -46,7 +47,7 @@ app.whenReady().then(()=>{
     }finally{checkingClose=false;}
   });
 });
-app.on('window-all-closed',()=>app.quit());
+app.on('window-all-closed',()=>{library.waveforms.cancel();app.quit();});
 ipcMain.handle('encoders',()=>capabilities());
 ipcMain.handle('update-status',()=>updates.status());
 ipcMain.handle('check-updates',()=>updates.check());
@@ -67,9 +68,10 @@ ipcMain.handle('cancel-update',()=>{updates.cancel();return updates.status();});
 ipcMain.handle('install-update',installUpdate);
 ipcMain.handle('fonts',()=>fontsPromise ||=(async()=>{try{const {stdout}=await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command',"[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); Add-Type -AssemblyName System.Drawing; $fontCollection = New-Object System.Drawing.Text.InstalledFontCollection; ConvertTo-Json -Compress -InputObject @($fontCollection.Families.Name | Sort-Object -Unique)"],{windowsHide:true,timeout:15000,maxBuffer:2*1024*1024});const names=JSON.parse(stdout.replace(/^\uFEFF/,''));return Array.isArray(names)?names:[];}catch{return ['Segoe UI','Tahoma','Arial','Impact','Consolas'];}})());
 async function importMedia(paths){importingMedia=true;try{return await library.import(paths,progress=>message('import-progress',progress));}finally{importingMedia=false;}}
-ipcMain.handle('choose-media',async(_,kind)=>{if(active||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};const chosen=await dialog.showOpenDialog(win,{title:kind==='image'?'اختار صور':'استورد فيديوهات وصور',properties:['openFile','multiSelections'],filters:kind==='image'?[{name:'Images',extensions:['png','jpg','jpeg','webp','bmp']}]:mediaFilter});return chosen.canceled?null:importMedia(chosen.filePaths);});
+ipcMain.handle('choose-media',async(_,kind)=>{if(active||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};const chosen=await dialog.showOpenDialog(win,{title:kind==='audio'?'اختار موسيقى أو تعليق صوتي':kind==='image'?'اختار صور':'استورد فيديوهات وصور وصوت',properties:['openFile','multiSelections'],filters:kind==='audio'?audioFilter:kind==='image'?[{name:'Images',extensions:['png','jpg','jpeg','webp','bmp']}]:mediaFilter});return chosen.canceled?null:importMedia(chosen.filePaths);});
 ipcMain.handle('import-media',(_,paths)=>{if(active||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};if(!Array.isArray(paths)||paths.some(p=>typeof p!=='string'||!path.isAbsolute(p)))return {error:'ملفات السحب غير صالحة.'};return importMedia(paths);});
 ipcMain.handle('frame',(_,id,t)=>library.frame(id,t,960));
+ipcMain.handle('waveform',async(_,id)=>{try{return await library.waveforms.get(library.assets[id]);}catch(e){return {error:e.message};}});
 ipcMain.handle('thumbnail',(_,id,t)=>library.frame(id,t,176));
 ipcMain.on('project-state',(_,raw,isDirty)=>{projectState=raw;if(isDirty)dirty=true;title();});
 ipcMain.handle('cancel-project-save',()=>{projectAbort?.abort();});
@@ -110,10 +112,10 @@ ipcMain.handle('export',async(_,opts)=>{
   if(Object.values(library.assets).some(a=>path.resolve(chosen.filePath).toLowerCase()===a.path.toLowerCase())||projectPath&&path.resolve(chosen.filePath).toLowerCase()===projectPath.toLowerCase())return {error:'اختار اسم مختلف حتى تبقى ملفاتك الأصلية محفوظة.'};
   const work=fs.mkdtempSync(path.join(os.tmpdir(),'sahl-')),tempOutput=path.join(path.dirname(chosen.filePath),'.sahl-'+Date.now()+'.mp4'),overlays=[];
   try{titleInputs.forEach((t,i)=>{const p=path.join(work,`title-${i}.png`);fs.writeFileSync(p,Buffer.from(t.png.split(',')[1],'base64'));overlays.push({path:p,start:t.start,duration:t.duration,animation:t.animation});});
-    autoSaver.capture();const args=exportArgs(library.assets,overlays,tempOutput,meta,opts),stats=new ExportProgress(length),child=spawn(ffmpeg,args,{windowsHide:true});let resolveDone;const job={process:child,canceled:false,done:new Promise(resolve=>{resolveDone=resolve;})};active=job;let errorLog='',progressBuffer='',settled=false;
+    autoSaver.capture();const args=exportArgs(library.assets,overlays,tempOutput,meta,opts),stats=new ExportProgress(length),child=spawn(ffmpeg,args,{windowsHide:true});let resolveDone;const job={process:child,canceled:false,done:new Promise(resolve=>{resolveDone=resolve;})};active=job;library.waveforms.setPaused(true);let errorLog='',progressBuffer='',settled=false;
     message('progress',stats.snapshot());const progressTimer=setInterval(()=>message('progress',stats.snapshot()),1000);
     child.stderr.on('data',d=>{errorLog=(errorLog+d).slice(-6000);});child.stdout.on('data',d=>{progressBuffer+=d.toString();const lines=progressBuffer.split(/\r?\n/);progressBuffer=lines.pop();for(const line of lines)if(line.startsWith('out_time_us='))message('progress',stats.update(Number(line.split('=')[1])/1e6));});
-    const finish=(code,error)=>{if(settled)return;settled=true;clearInterval(progressTimer);const canceled=job.canceled;if(active===job)active=null;try{if(code===0&&!canceled){fs.renameSync(tempOutput,chosen.filePath);lastOutput=chosen.filePath;message('complete',{path:lastOutput,timing:stats.finish(true)});}else{fs.rmSync(tempOutput,{force:true});message('complete',{...(canceled?{canceled:true}:{error:'تعذّر التصدير. تأكد من مساحة القرص. '+(error?.message||errorLog.slice(-1200))}),timing:stats.finish(false)});}}catch(e){message('complete',{error:'تعذّر حفظ الملف: '+e.message+' — النسخة المؤقتة: '+tempOutput,timing:stats.finish(false)});}finally{try{fs.rmSync(work,{recursive:true,force:true});}finally{resolveDone();}}};
+    const finish=(code,error)=>{if(settled)return;settled=true;clearInterval(progressTimer);const canceled=job.canceled;if(active===job)active=null;library.waveforms.setPaused(false);try{if(code===0&&!canceled){fs.renameSync(tempOutput,chosen.filePath);lastOutput=chosen.filePath;message('complete',{path:lastOutput,timing:stats.finish(true)});}else{fs.rmSync(tempOutput,{force:true});message('complete',{...(canceled?{canceled:true}:{error:'تعذّر التصدير. تأكد من مساحة القرص. '+(error?.message||errorLog.slice(-1200))}),timing:stats.finish(false)});}}catch(e){message('complete',{error:'تعذّر حفظ الملف: '+e.message+' — النسخة المؤقتة: '+tempOutput,timing:stats.finish(false)});}finally{try{fs.rmSync(work,{recursive:true,force:true});}finally{resolveDone();}}};
     child.on('error',e=>finish(-1,e));child.on('close',code=>finish(code));return {started:true};
   }catch(e){fs.rmSync(work,{recursive:true,force:true});return {error:e.message};}
 });

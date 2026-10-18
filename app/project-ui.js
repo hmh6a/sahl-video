@@ -10,12 +10,12 @@ async function saveCurrentProject(saveAs=false){
 }
 async function openSavedProject(){
  if(busy||fileBusy)return;if(importing)return status('انتظر انتهاء استيراد الملفات حتى تحفظ أو تفتح مشروع.');pause();commitTitle();fileButtons(true);
- try{const result=await window.sahl.openProject(projectSnapshot());if(result.error)return status(result.error,true);if(result.canceled)return;applyProjectResult(result);status('فتحت المشروع. القصات والنصوص والصور وتوقيتها رجعت مثل ما حفظتها.');
+ try{const result=await window.sahl.openProject(projectSnapshot());if(result.error)return status(result.error,true);if(result.canceled)return;applyProjectResult(result);status('فتحت المشروع. القصات والنصوص والصور ومسارات الصوت وتوقيتها رجعت مثل ما حفظتها.');
  }catch(e){status('تعذّر فتح المشروع: '+e.message,true);}finally{fileButtons(false);}
 }
 function applyProjectResult(result){
  previewAbort?.abort();frameSerial++;sourceId=null;unsupported=false;unsupportedAssets.clear();thumbnailQueue.clear();previewLoad.cancel();
- const s=result.state;assets=result.assets;meta=s.meta;clips=s.clips;cursor=s.cursor;selectedClip=s.selectedClip;selectionKind=s.selectionKind;titles=s.titles;selectedTitle=s.selectedTitle;history=[];future=[];razor=false;
+ const s=result.state;audioTracks=structuredClone(s.audioTracks||[]);mainTrack={muted:false,solo:false,locked:false,...s.mainTrack};markers=structuredClone(s.markers||[]);titlesLocked=!!s.titlesLocked;snapEnabled=s.snapEnabled!==false;selectedAudio=s.selectedAudio||null;timelineSelection=[];lastMainClips=null;if(typeof resetTrackPreview==='function')resetTrackPreview();if(typeof resetTimelineClipboard==='function')resetTimelineClipboard();assets=result.assets;meta=s.meta;sourceMeta=s.sourceMeta||s.meta;canvasMode=s.canvasMode||'source';clips=s.clips;cursor=s.cursor;selectedClip=s.selectedClip;selectionKind=s.selectionKind;titles=s.titles;selectedTitle=s.selectedTitle;history=[];future=[];razor=false;
  $('zoom').value=s.zoom;updateExportInfo(s.resolution);$('quality').value=s.quality;if([...$('encoder').options].some(o=>o.value===s.encoder))$('encoder').value=s.encoder;
  $('badge').textContent=meta?`${meta.width} × ${meta.height}`:'4K READY';projectFile=result.path;projectDirty=!!result.dirty;projectLabel(result.name);
  fillTitleFields();draw();renderTitleList();renderAssets();renderTimeline();seekTo(cursor);updateExportInfo();$('show-output').hidden=true;

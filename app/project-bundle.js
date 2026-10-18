@@ -15,7 +15,7 @@ async function createFolder(requested){
 // intact until every new copy has finished; cancellation removes only our own files.
 async function saveBundle(requested,raw,registry,{existing=false,signal,onProgress=()=>{},progressInterval=100}={}){
   const notify=value=>{try{onProgress(value);}catch{}};
-  const ids=Array.from(new Set(raw.assetIds||raw.clips.map(c=>c.assetId))),sources={},jobs=[];
+  const ids=Project.assetIds(raw),sources={},jobs=[];
   for(const id of ids){if(!registry[id])throw new Error('ملف من ملفات المشروع مفقود.');sources[id]=registry[id];}
   const clean=Project.state(raw,sources);canceled(signal);
   let file,folder,newFolder=false,mediaCreated=false,mediaDir,temporary;const created=[];
@@ -48,8 +48,8 @@ async function saveBundle(requested,raw,registry,{existing=false,signal,onProgre
       assets[job.id]={...a,path:destination,name:job.name};
     }
     canceled(signal);
-    const document={app:'sahl-video',version:1,portable:true,...clean,assets:Object.entries(assets).map(([id,a])=>({id,kind:a.kind,name:a.name,relativePath:path.relative(folder,a.path)}))};
-    const manifest=file+'.'+crypto.randomUUID()+'.tmp';created.push(manifest);await fsp.writeFile(manifest,JSON.stringify(document,null,2),'utf8');canceled(signal);await fsp.rename(manifest,file);
+    const document={app:'sahl-video',version:Project.VERSION,portable:true,...clean,assets:Object.entries(assets).map(([id,a])=>({id,kind:a.kind,name:a.name,relativePath:path.relative(folder,a.path)}))};
+    const manifest=file+'.'+crypto.randomUUID()+'.tmp';created.push(manifest);await fsp.writeFile(manifest,JSON.stringify(document,null,2),'utf8');canceled(signal);Project.backupLegacy(file);await fsp.rename(manifest,file);
     notify({phase:'saved',percent:100,index:jobs.length,count:jobs.length,copiedBytes,totalBytes});
     return {file,folder,document,assets};
   }catch(e){
