@@ -30,6 +30,9 @@ dialog{width:500px;padding:26px;border-radius:16px;background:#1c1c27;border-col
 @media(prefers-reduced-motion:reduce){.loading-spinner{animation:none}}
 
 /* Export changes from editable controls to a compact progress and information view. */
+#export-completed:not([hidden]){display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:20px;padding:18px 20px;border:1px solid #417967;border-radius:12px;background:#1d2c2a;color:#b6eed5}
+#export-completed>div{display:grid;gap:8px}#export-completed strong{font-size:15px}#export-completed span{font-size:12px;color:#b8c9c2}
+#export-completed-duration{font-size:28px;font-variant-numeric:tabular-nums;white-space:nowrap;color:#e0ffef}
 #export-activity:focus{outline:none}
 #export-activity .timing-cards{margin-top:0;gap:12px}
 #export-activity .timing-cards>div{padding:20px 18px;border-radius:12px;background:#16151f;border-color:#38313f;gap:12px}
