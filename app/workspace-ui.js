@@ -33,19 +33,19 @@ for(const button of document.querySelectorAll('.left-rail .rail-button:not(#open
 const resizeHandle=$('timeline-resize');
 let timelineDrag=null;
 function resizeTimeline(height,save=false){
- const max=Math.max(180,Math.min(420,Math.floor(innerHeight*.48))),value=Math.round(Math.max(180,Math.min(max,Number(height)||244)));
+ const max=Math.max(300,Math.min(420,Math.floor(innerHeight*.48))),value=Math.round(Math.max(300,Math.min(max,Number(height)||320)));
  document.documentElement.style.setProperty('--timeline-height',value+'px');
- resizeHandle.setAttribute('aria-valuemin','180');resizeHandle.setAttribute('aria-valuemax',String(max));resizeHandle.setAttribute('aria-valuenow',String(value));resizeHandle.setAttribute('aria-valuetext',value+' بكسل');
+ resizeHandle.setAttribute('aria-valuemin','300');resizeHandle.setAttribute('aria-valuemax',String(max));resizeHandle.setAttribute('aria-valuenow',String(value));resizeHandle.setAttribute('aria-valuetext',value+' بكسل');
  if(save)try{localStorage.setItem('sahl-timeline-height',String(value));}catch{}
  renderRuler();scheduleFilmstrip();return value;
 }
-try{resizeTimeline(localStorage.getItem('sahl-timeline-height')||244);}catch{resizeTimeline(244);}
+try{resizeTimeline(localStorage.getItem('sahl-timeline-height')||320);}catch{resizeTimeline(320);}
 resizeHandle.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();timelineDrag={id:e.pointerId,y:e.clientY,height:Number(resizeHandle.getAttribute('aria-valuenow'))};resizeHandle.setPointerCapture(e.pointerId);document.body.classList.add('resizing-timeline');};
 resizeHandle.onpointermove=e=>{if(timelineDrag?.id===e.pointerId)resizeTimeline(timelineDrag.height+timelineDrag.y-e.clientY);};
 function finishTimelineResize(e){if(timelineDrag?.id!==e.pointerId)return;timelineDrag=null;document.body.classList.remove('resizing-timeline');if(resizeHandle.hasPointerCapture(e.pointerId))resizeHandle.releasePointerCapture(e.pointerId);resizeTimeline(resizeHandle.getAttribute('aria-valuenow'),true);}
 resizeHandle.onpointerup=resizeHandle.onpointercancel=resizeHandle.onlostpointercapture=finishTimelineResize;
-resizeHandle.ondblclick=()=>resizeTimeline(244,true);
-resizeHandle.onkeydown=e=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key))return;e.preventDefault();e.stopPropagation();const height=Number(resizeHandle.getAttribute('aria-valuenow'));resizeTimeline(e.key==='Home'?180:e.key==='End'?420:height+(e.key==='ArrowUp'?20:-20),true);};
+resizeHandle.ondblclick=()=>resizeTimeline(320,true);
+resizeHandle.onkeydown=e=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(e.key))return;e.preventDefault();e.stopPropagation();const height=Number(resizeHandle.getAttribute('aria-valuenow'));resizeTimeline(e.key==='Home'?300:e.key==='End'?420:height+(e.key==='ArrowUp'?20:-20),true);};
 window.addEventListener('resize',()=>resizeTimeline(resizeHandle.getAttribute('aria-valuenow')));
 const shortcutModifier=/Mac|iPhone|iPad/.test(navigator.platform)?'⌘':'Ctrl';
 const shortcuts=[['تشغيل / إيقاف مؤقت','Space'],['تقسيم عند المؤشر','S'],['تفعيل المقص / التحديد','C / V'],['إطار سابق / لاحق','← / →'],['تقديم / تأخير ثانية','Shift + ← / →'],['بداية / نهاية الفيديو','Home / End'],['عرض الشريط كامل','F'],['تراجع',shortcutModifier+' + Z'],['إعادة',shortcutModifier+' + Shift + Z'],['استيراد ملفات',shortcutModifier+' + I'],['فتح مشروع',shortcutModifier+' + O'],['حفظ مع الملفات',shortcutModifier+' + S'],['حفظ باسم',shortcutModifier+' + Shift + S'],['إعدادات التصدير',shortcutModifier+' + Shift + E'],['حذف المحدد','Delete / Backspace']];
@@ -53,6 +53,6 @@ for(const [label,key]of shortcuts){const row=document.createElement('div'),dt=do
 $('open-shortcuts').onclick=()=>{$('shortcuts-dialog').showModal();};
 $('close-shortcuts').onclick=()=>{$('shortcuts-dialog').close();};
 for(const [id,key]of [['save-project','S'],['save-project-as','Shift + S'],['open-project','O'],['choose','I'],['undo','Z'],['redo','Shift + Z'],['open-export','Shift + E']])$(id).title=($(id).textContent.trim()||$(id).getAttribute('aria-label'))+' — '+shortcutModifier+' + '+key;
-$('toggle-properties').title='إظهار / إخفاء خصائص النص';$('remove-text').setAttribute('aria-label','حذف النص');$('remove-text').title='حذف النص';
+$('toggle-properties').title='إظهار / إخفاء الخصائص — Alt + P للوصول إلى المحدد';$('remove-text').setAttribute('aria-label','حذف النص');$('remove-text').title='حذف النص';
 $('back-frame').setAttribute('aria-label','إطار سابق');$('next-frame').setAttribute('aria-label','إطار لاحق');$('back-frame').title='إطار سابق — ←';$('next-frame').title='إطار لاحق — →';$('play').title='تشغيل / إيقاف مؤقت — Space';
 renderAssets();

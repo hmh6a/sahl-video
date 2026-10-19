@@ -3,14 +3,14 @@ function updateEncoderNote(hdr=false){
  $('encoder-note').textContent=$('encoder').value==='cpu'?'يُصدَّر الفيديو باستخدام المعالج CPU.':hdr&&selected&&!selected.hdrEncoder?'تدعم بطاقة الرسومات هذه الفيديو العادي؛ ويُستخدم المعالج CPU تلقائياً لتصدير HDR.':selected?'يُرمَّز الفيديو باستخدام بطاقة الرسومات: '+selected.name+'؛ وتُعالَج بعض المؤثرات باستخدام المعالج.':'بطاقة الرسومات غير متاحة. اختر المعالج CPU.';
 }
 function updateExportColor(){
- const hdr=clips.some(c=>assetFor(c)?.hdr),note=$('export-color-note'),selected=availableEncoders.find(e=>e.id===$('encoder').value);
+ const hdr=clips.some(c=>assetFor(c)?.hdr)||(typeof layers!=='undefined'&&layers.some(c=>!c.hidden&&c.at<total()&&assetFor(c)?.hdr)),note=$('export-color-note'),selected=availableEncoders.find(e=>e.id===$('encoder').value);
  note.hidden=!hdr;updateEncoderNote(hdr);
  if(hdr)note.textContent='يُصدَّر الفيديو تلقائياً بتقنية HDR وبصيغة HEVC بعمق ألوان 10-bit، مع الحفاظ على دقة المشروع ومعدل إطاراته. '+(selected?.hdrEncoder?'تُستخدم بطاقة الرسومات في الترميز.':$('encoder').value==='cpu'?'يُستخدم المعالج CPU في الترميز.':'لا تدعم بطاقة الرسومات المحددة تصدير HDR؛ لذا يُستخدم المعالج CPU تلقائياً.')+' يتطلب عرض نطاق السطوع الكامل شاشة ومشغّلاً يدعمان HDR.';
  $('export-format').textContent=hdr?'MP4 · HDR · HEVC 10-bit · بدون علامة مائية':'MP4 · بدون علامة مائية';
 }
 let availableEncoders=[];
 function showProperties(section){if(section){selectionKind='title';if(typeof refreshClipControls==='function')refreshClipControls();}document.body.classList.remove('properties-hidden');$('toggle-properties').setAttribute('aria-expanded','true');if(section&&typeof setInspectorTab==='function')setInspectorTab(section);layoutCanvas();}
-function openExport(){updateExportInfo();updateButtons();if($('export-duration'))$('export-duration').textContent=seconds(total());$('export-dialog').showModal();$('export-status').textContent=meta?'':'استورد فيديو أولاً حتى تقدر تصدّره.';}
+function openExport(){updateExportInfo();updateButtons();if($('export-duration'))$('export-duration').textContent=seconds(total());if(typeof refreshExportRange==='function')refreshExportRange();$('export-dialog').showModal();$('export-status').textContent=meta?'':'استورد فيديو أولاً حتى تقدر تصدّره.';}
 $('open-export').onclick=$('right-export').onclick=openExport;
 $('close-export').onclick=()=>{if(!busy)$('export-dialog').close();};
 $('export-dialog').addEventListener('cancel',e=>{if(busy)e.preventDefault();});
@@ -44,6 +44,6 @@ function updateExportInfo(preferred=$('resolution').value){
 $('resolution').onchange=()=>{updateExportInfo();changed();};$('quality').onchange=changed;$('encoder').addEventListener('change',changed);
 
 function exportSnapshot(){
- const hdr=clips.some(c=>assetFor(c)?.hdr),selected=availableEncoders.find(e=>e.id===$('encoder').value),size=SahlResolution.outputSize(meta,$('resolution').value);
- return {resolution:size.width+' × '+size.height,fps:fps(meta.fps).toFixed(2)+' fps',duration:seconds(total()),encoder:selected&&(!hdr||selected.hdrEncoder)?selected.name:'المعالج CPU',quality:$('quality').selectedOptions[0].textContent,format:hdr?'MP4 · HEVC · HDR 10-bit':'MP4 · H.264 · SDR'};
+ const hdr=clips.some(c=>assetFor(c)?.hdr)||(typeof layers!=='undefined'&&layers.some(c=>!c.hidden&&c.at<total()&&assetFor(c)?.hdr)),selected=availableEncoders.find(e=>e.id===$('encoder').value),size=SahlResolution.outputSize(meta,$('resolution').value);
+ return {resolution:size.width+' × '+size.height,fps:fps(meta.fps).toFixed(2)+' fps',duration:typeof selectedExportRange==='function'&&selectedExportRange().enabled?precise(selectedExportRange().duration):seconds(total()),encoder:selected&&(!hdr||selected.hdrEncoder)?selected.name:'المعالج CPU',quality:$('quality').selectedOptions[0].textContent,format:hdr?'MP4 · HEVC · HDR 10-bit':'MP4 · H.264 · SDR'};
 }

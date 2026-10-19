@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id);
 const video=$('video'),canvas=$('overlay');
 let meta,sourceMeta=null,canvasMode='source',template='gaming',busy=false,unsupported=false,frameTimer,frameSerial=0,titleBounds=null;
-let titles=[SahlTitles.create({title:'عنوان الفيديو',subtitle:'وصف قصير'})],selectedTitle=titles[0].id;
+let titles=[SahlTitles.create({title:'عنوان الفيديو',subtitle:'وصف قصير',font:'Noto Sans Arabic'})],selectedTitle=titles[0].id;
 const titleLayers=new Map();
 function currentTitle(){return titles.find(t=>t.id===selectedTitle)||null;}
 function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);if($('export-dialog')?.open){$('export-status').textContent=text;$('export-status').classList.toggle('error',error);}}
@@ -11,6 +11,7 @@ function settings(){return {template,animation:$('animation').value,title:$('tit
 function commitTitle(){const t=currentTitle();if(t){Object.assign(t,settings());if(t.link){const parent=SahlAudioTracks.offsets(clips).get(t.link.clipId);if(parent){t.titleStart=Math.max(parent.at,t.titleStart);t.link.offset=t.titleStart-parent.at;$('title-start').value=t.titleStart;}}}}
 function drawTitle(target,t){
   const w=meta?.width||1920,h=meta?.height||1080;target.width=w;target.height=h;const c=target.getContext('2d');
+  if(typeof fontCanDraw==='function'&&!fontCanDraw(t.font))return null;
   if(!t.enabled||(!t.title.trim()&&!t.subtitle.trim()))return null;
   const title=t.title.trim(),sub=t.subtitle.trim(),base=Math.min(w/1920,h/1080)*Number(t.size),available=w*.82-60*base;
   const arabic=/[\u0600-\u06ff]/.test(title+sub),family=t.font==='auto'?(t.template==='gaming'&&!arabic?'Impact':'Segoe UI'):t.font;
@@ -44,6 +45,8 @@ function draw(){
 function layoutCanvas(){
   if(!meta)return;const r=$('stage').getBoundingClientRect(),scale=Math.min(r.width/meta.width,r.height/meta.height);
   for(const layer of titleLayers.values()){layer.canvas.style.width=meta.width*scale+'px';layer.canvas.style.height=meta.height*scale+'px';}
+  if(typeof layoutCaptionCanvas==='function')layoutCaptionCanvas(scale);
+  if(typeof layoutLayers==='function')layoutLayers(scale);
   if(typeof layoutPicture==='function')layoutPicture(scale);else for(const el of [video,$('still'),$('fallback')]){el.style.width=meta.width*scale+'px';el.style.height=meta.height*scale+'px';}
   const selection=$('title-selection'),t=currentTitle();if(titleBounds){selection.style.left=(r.width-meta.width*scale)/2+titleBounds.x*scale+'px';selection.style.top=(r.height-meta.height*scale)/2+titleBounds.y*scale+'px';selection.style.width=titleBounds.width*scale+'px';selection.style.height=titleBounds.height*scale+'px';}
   const animationActive=t&&cursor<t.titleStart+Math.min(.5,t.titleDuration/3);

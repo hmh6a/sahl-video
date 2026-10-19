@@ -1,0 +1,64 @@
+name: Validate desktop packages without publication
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate ${{ matrix.platform }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            arch: x64
+          - os: macos-15
+            platform: darwin
+            arch: arm64
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.18.0'
+          architecture: ${{ matrix.arch }}
+          cache: npm
+      - name: Check native build architecture
+        run: node -e "if(process.platform !== '${{ matrix.platform }}' || process.arch !== '${{ matrix.arch }}') process.exit(1)"
+      - name: Install locked dependencies including bundled video tools
+        run: npm ci
+      - name: Test editing, recovery and real video export
+        run: npm test
+      - name: Test Electron media seeking
+        run: npx electron tests/electron-protocol.cjs
+      - name: Prepare native speech engine
+        run: npm run prepare:transcription
+      - name: Provision checked speech model for offline verification
+        run: node scripts/provision-speech-model.cjs
+      - name: Verify native silence and noise handling
+        run: npm run verify:speech
+      - name: Test captions in Electron
+        run: npx electron tests/electron-captions.cjs
+      - name: Test editor workflow in Electron
+        run: npx electron tests/electron-workflow.cjs
+      - name: Build Windows installer or Mac DMG and update ZIP
+        run: npm run dist:release
+      - name: Verify packaged export and offline speech
+        run: npm run verify:package
+        env:
+          SAHL_SPEECH_MODEL: test-output/transcription/ggml-small.bin

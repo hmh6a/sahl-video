@@ -4,7 +4,7 @@ function fillTitleFields(){
   if(!t){titleBounds=null;layoutCanvas();return;}
   if(![...$('font').options].some(o=>o.value===t.font))$('font').add(new Option(t.font,t.font));
   for(const [id,key]of Object.entries(fieldMap)){if(id==='enabled')$(id).checked=t[key];else $(id).value=t[key];}
-  $('font-note').hidden=t.font!=='Anton';template=t.template;document.querySelectorAll('.template').forEach(b=>b.classList.toggle('selected',b.dataset.template===template));
+  if(typeof showTitleFontNotice==='function')showTitleFontNotice();else $('font-note').hidden=t.font!=='Anton';template=t.template;document.querySelectorAll('.template').forEach(b=>b.classList.toggle('selected',b.dataset.template===template));
 }
 function renderTitleList(){
   document.querySelectorAll('.template').forEach(b=>b.disabled=busy||titlesLocked||!currentTitle());if($('templates-empty'))$('templates-empty').hidden=!!currentTitle();
@@ -28,7 +28,7 @@ function renderTitleTracks(){
   });
 }
 $('text-list').onchange=()=>selectTitle($('text-list').value,true);
-$('add-text').onclick=()=>{if(busy||titlesLocked||titles.length>=24)return;pause();checkpoint();const t=SahlTitles.create({title:'نص جديد '+(titles.length+1),titleStart:meta?Math.min(cursor,Math.max(0,total()-.1)):0,titleDuration:meta?Math.min(5,Math.max(.1,total()-cursor)):5,position:titles.length%2?'top-right':'left'});titles.push(t);selectTitle(t.id,true);updateButtons();showProperties('text');$('title').focus();};
+$('add-text').onclick=()=>{if(busy||titlesLocked||titles.length>=24)return;pause();checkpoint();const t=SahlTitles.create({font:'Noto Sans Arabic',title:'نص جديد '+(titles.length+1),titleStart:meta?Math.min(cursor,Math.max(0,total()-.1)):0,titleDuration:meta?Math.min(5,Math.max(.1,total()-cursor)):5,position:titles.length%2?'top-right':'left'});titles.push(t);selectTitle(t.id,true);updateButtons();showProperties('text');$('title').focus();};
 $('duplicate-text').onclick=()=>{if(busy||titlesLocked||!currentTitle()||titles.length>=24)return;pause();checkpoint();const t=SahlTitles.create({...currentTitle(),id:undefined,title:currentTitle().title+' — نسخة',titleStart:meta?Math.min(total()-.1,currentTitle().titleStart+currentTitle().titleDuration):currentTitle().titleStart});if(t.link){const parent=SahlAudioTracks.offsets(clips).get(t.link.clipId);t.titleStart=Math.max(parent.at,t.titleStart);t.link.offset=t.titleStart-parent.at;}titles.push(t);selectTitle(t.id,true);updateButtons();};
 function removeTitle(){if(busy||titlesLocked||!currentTitle())return;pause();checkpoint();const index=titles.findIndex(t=>t.id===selectedTitle);titles.splice(index,1);selectedTitle=titles[Math.min(index,titles.length-1)]?.id||null;fillTitleFields();draw();renderTitleList();renderTimeline();}
 $('remove-text').onclick=removeTitle;
@@ -57,7 +57,7 @@ $('title-selection').onkeydown=e=>{if(!meta||busy||titlesLocked||!titleBounds)re
 for(const id of titleFields){
   let before;
   $(id).addEventListener('focus',()=>{selectionKind='title';timelineSelection=selectedTitle?['title:'+selectedTitle]:[];before=snapshot();updateButtons();});
-  $(id).oninput=()=>{if(!currentTitle()||busy||titlesLocked)return;if(id==='text-x'||id==='text-y')$('position').value='custom';commitTitle();$('font-note').hidden=$('font').value!=='Anton';draw();renderTitleList();renderTitleTracks();updateButtons();changed();};
+  $(id).oninput=()=>{if(!currentTitle()||busy||titlesLocked)return;if(id==='text-x'||id==='text-y')$('position').value='custom';commitTitle();if(typeof showTitleFontNotice==='function')showTitleFontNotice();else $('font-note').hidden=$('font').value!=='Anton';draw();renderTitleList();renderTitleTracks();updateButtons();changed();};
   $(id).addEventListener('change',()=>{if(before&&JSON.stringify(before.titles)!==JSON.stringify(titles)){history.push(before);future=[];before=snapshot();}if(id==='title-start'||id==='title-duration'||id==='position')previewTitle();updateButtons();});
 }
 for(const id of ['title','subtitle','font','font-weight','size','accent'])$(id).addEventListener('focus',()=>{if(currentTitleTime().duration&&SahlTitle.opacity(cursor,currentTitleTime())===0)previewTitle();});

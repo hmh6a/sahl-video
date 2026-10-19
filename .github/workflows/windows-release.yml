@@ -49,6 +49,16 @@ jobs:
         run: npm test
       - name: Test Electron media seeking
         run: npx electron tests/electron-protocol.cjs
+      - name: Prepare native speech engine
+        run: npm run prepare:transcription
+      - name: Provision checked speech model for offline verification
+        run: node scripts/provision-speech-model.cjs
+      - name: Verify native silence and noise handling
+        run: npm run verify:speech
+      - name: Test captions in Electron
+        run: npx electron tests/electron-captions.cjs
+      - name: Test editor workflow in Electron
+        run: npx electron tests/electron-workflow.cjs
       - name: Build Windows installer or Mac DMG and update ZIP
         run: npm run dist:release
         env:
@@ -59,6 +69,8 @@ jobs:
           APPLE_TEAM_ID: ${{ matrix.platform == 'darwin' && secrets.APPLE_TEAM_ID || '' }}
       - name: Verify packaged tools work without system FFmpeg and prepare release
         run: node scripts/prepare-release.cjs
+        env:
+          SAHL_SPEECH_MODEL: test-output/transcription/ggml-small.bin
       - name: Keep tested artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

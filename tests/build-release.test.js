@@ -1,10 +1,10 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),vm=require('node:vm'),{spawnSync}=require('node:child_process');
 const source=fs.readFileSync(path.resolve('scripts/build-release.cjs'),'utf8');
-function setup({env={},platform='darwin',arch='arm64',missing,fail}={}){
+function setup({env={},platform='darwin',arch='arm64',missing,fail,speechFail}={}){
  const calls=[],checked=[],module={exports:{}},processMock={platform,arch,env:{...env}};
  const target={createTarget:(names,arch)=>({names,arch})};
  const builder={Platform:{MAC:target,WINDOWS:target},Arch:{arm64:'arm64',x64:'x64'},async build(options){calls.push({options,env:{...processMock.env}});if(fail)throw Error('signing failed');}};
- vm.runInNewContext(source,{module,process:processMock,console:{log(){}},require:name=>name==='electron-builder'?builder:name==='node:fs'?{existsSync(file){checked.push(file);return !file.endsWith(missing||'.missing');},statSync:()=>({size:100})}:name==='../package.json'?{version:'1.0.2',build:{directories:{output:'dist'}}}:require(name)});
+ vm.runInNewContext(source,{module,process:processMock,console:{log(){}},require:name=>name==='./prepare-transcription.cjs'?{async prepare(){if(speechFail)throw Error('speech preparation failed');return {directory:'/verified/runtime'};}}:name==='electron-builder'?builder:name==='node:fs'?{existsSync(file){checked.push(file);return !file.endsWith(missing||'.missing');},statSync:()=>({size:100})}:name==='../package.json'?{version:'1.0.2',build:{directories:{output:'dist'}}}:require(name)});
  return {run:module.exports.run,calls,checked};
 }
 test('empty GitHub signing secrets produce unsigned Mac installers for both architectures',async()=>{
@@ -29,5 +29,11 @@ test('CLI exits nonzero even when builder cleanup would reset exitCode',t=>{
  fs.mkdirSync(path.join(root,'scripts'));fs.mkdirSync(path.join(root,'node_modules/electron-builder'),{recursive:true});fs.writeFileSync(path.join(root,'scripts/build-release.cjs'),source);
  fs.writeFileSync(path.join(root,'node_modules/electron-builder/index.js'),"process.on('beforeExit',()=>{process.exitCode=0;});const target={createTarget:()=>({})};module.exports={Platform:{MAC:target,WINDOWS:target},Arch:{arm64:1,x64:2},build:async()=>{throw Error('simulated signing failure');}};");
  const env={...process.env};for(const key of ['CSC_LINK','CSC_KEY_PASSWORD','APPLE_ID','APPLE_APP_SPECIFIC_PASSWORD','APPLE_TEAM_ID'])env[key]='';
+ fs.writeFileSync(path.join(root,'scripts/prepare-transcription.cjs'),"module.exports={prepare:async()=>({directory:'/verified/runtime'})};");
  const result=spawnSync(process.execPath,['scripts/build-release.cjs'],{cwd:root,env,encoding:'utf8'});assert.equal(result.status,1);assert.match(result.stderr,/simulated signing failure|native macOS or Windows/);
+});
+
+test('a missing speech runtime fails before packaging and each bundle selects only its native runtime',async()=>{
+ const fail=setup({speechFail:true});await assert.rejects(fail.run(),/speech preparation failed/);assert.equal(fail.calls.length,0);
+ for(const [platform,arch]of [['darwin','arm64'],['darwin','x64'],['win32','x64']]){const d=setup({platform,arch});await d.run();const config=d.calls[0].options.config;assert.equal(config.files.at(-1).to,'app/native/transcription/'+platform+'-'+arch);assert.ok(config.files.includes('!app/native/transcription/**/*'));assert.equal(d.calls[0].options.publish,'never');if(platform==='darwin')assert.ok(config.mac.binaries.some(x=>x.endsWith(platform+'-'+arch+'/whisper-cli')));}
 });

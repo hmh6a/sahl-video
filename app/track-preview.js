@@ -10,9 +10,9 @@ function trackPlayer(c){
 async function syncTrackAudio(time,run,prepare=false){
   if(!audioPreview)return;const revision=trackPlaybackRevision,active=new Set(),jobs=[];
   for(const track of audioTracks)for(const c of track.clips){
-    const local=time-c.at;if(!run||local<0||local>=c.end-c.start||!AT.audible(track,mainTrack,audioTracks))continue;active.add(c.id);const p=trackPlayer(c),a=SettingsAudio(c.audio),limited=a.volume>1;
-    let linkedGain=1;if(c.link){const i=clips.findIndex(parent=>parent.id===c.link.clipId),d=c.end-c.start,fi=c.link.offset<1e-7?TL.fadeLength(clips,i-1):0,fo=Math.abs(c.link.offset+d-(clips[i].end-clips[i].start))<1e-7?TL.fadeLength(clips,i):0;linkedGain=Math.max(0,Math.min(1,fi?local/fi:1,fo?(d-local)/fo:1));}p.gain.gain.value=SahlClipSettings.gain(a,local,c.end-c.start)*linkedGain;if(p.limited!==limited){p.limiter.curve=limited?audioPreview.curve:null;p.limited=limited;}
-    if(p.pending){jobs.push(p.pending);continue;}const target=c.start+local;
+    const local=time-c.at;if(!run||local<0||local>=TL.length(c)||!AT.audible(track,mainTrack,audioTracks))continue;active.add(c.id);const p=trackPlayer(c),a=SettingsAudio(c.audio),limited=a.volume>1;
+    const linkedGain=c.link?TL.audioGain(clips,clips.findIndex(p=>p.id===c.link.clipId),time):1;p.gain.gain.value=SahlClipSettings.gain(a,local,TL.length(c))*linkedGain;if(p.limited!==limited){p.limiter.curve=limited?audioPreview.curve:null;p.limited=limited;}
+    if(p.pending){jobs.push(p.pending);continue;}const target=TL.sourceTime(c,local);p.media.playbackRate=TL.rate(c);p.media.preservesPitch=c.preservePitch!==false;
     if(p.media.paused||Math.abs(p.media.currentTime-target)>.12){
       p.abort?.abort();const controller=new AbortController();p.abort=controller;
       const job=(async()=>{await SahlPlayback.seekReady(p.media,Math.min(target,c.end-.001),controller.signal);if(controller.signal.aborted||revision!==trackPlaybackRevision||prepare)return;await p.media.play();if(controller.signal.aborted||revision!==trackPlaybackRevision)p.media.pause();})();

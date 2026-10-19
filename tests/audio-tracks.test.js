@@ -34,7 +34,7 @@ test('audio-only media and bounded waveforms are imported, cached, deduplicated,
 });
 test('portable v3 projects and crash recovery retain audio files, links, locks, markers and v2 backup',async()=>{
   await fixtures();const raw={meta:{width:160,height:90,fps:'30'},clips:[{id:'v1',assetId:'v',start:0,end:3}],titles:[],audioTracks:[{id:'a',name:'Music',solo:true,locked:true,clips:[{id:'m1',assetId:'m',start:.2,end:1.8,at:.5,audio:{volume:.7,fadeIn:.2}}]}],mainTrack:{muted:true},markers:[{id:'mark',name:'ملاحظة',time:1}],snapEnabled:false,titlesLocked:true};
-  const saved=await saveBundle(path.join(dir,'portable.sahl'),raw,registry),read=Project.readProject(saved.file);assert.equal(read.raw.version,3);assert.deepEqual(read.sources.map(s=>s.id).sort(),['m','v']);assert.deepEqual(Project.state(read.raw,registry),Project.state(raw,registry));
+  const saved=await saveBundle(path.join(dir,'portable.sahl'),raw,registry),read=Project.readProject(saved.file);assert.equal(read.raw.version,Project.VERSION);assert.deepEqual(read.sources.map(s=>s.id).sort(),['m','v']);assert.deepEqual(Project.state(read.raw,registry),Project.state(raw,registry));
   fs.writeFileSync(saved.file,JSON.stringify({...read.raw,version:2}));const bytes=fs.readFileSync(saved.file);await saveBundle(saved.file,raw,saved.assets,{existing:true});assert.deepEqual(fs.readFileSync(saved.file+'.v2-backup'),bytes);
   const writer=new RecoveryStore(dir,{id:'audio-recovery',isAlive:()=>false});writer.save(raw,registry);const reader=new RecoveryStore(dir,{id:'audio-reopen',isAlive:()=>false});assert.deepEqual(Project.state(reader.read('audio-recovery').raw,registry),Project.state(raw,registry));
 });

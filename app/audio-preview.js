@@ -12,10 +12,10 @@ async function prepareAudioPreview(){
   await audioPreview.context.resume();updateClipAudio();
 }
 function updateClipAudio(){
-  const at=TL.locate(clips,cursor),c=at&&clips[at.index],a=SahlClipSettings.audio(c?.audio),level=c&&SahlAudioTracks.audible(mainTrack,mainTrack,audioTracks)?SahlClipSettings.gain(a,at.local,c.end-c.start)*TL.gain(clips,cursor):0;
-  if(audioPreview){audioPreview.gain.gain.value=level;const limited=a.volume>1;if(audioPreview.limited!==limited){audioPreview.limiter.curve=limited?audioPreview.curve:null;audioPreview.limited=limited;}const mixLimited=audioTracks.some(t=>SahlAudioTracks.audible(t,mainTrack,audioTracks)&&t.clips.some(c=>c.at<total()));if(audioPreview.mixLimited!==mixLimited){audioPreview.masterLimiter.curve=mixLimited?audioPreview.curve:null;audioPreview.mixLimited=mixLimited;}video.volume=1;}
+  const at=TL.locate(clips,cursor),c=at&&clips[at.index],a=SahlClipSettings.audio(c?.audio),level=c&&SahlAudioTracks.audible(mainTrack,mainTrack,audioTracks)?SahlClipSettings.gain(a,at.local,TL.length(c))*TL.audioGain(clips,at.index,cursor):0;
+  if(audioPreview){audioPreview.gain.gain.value=level;const limited=a.volume>1;if(audioPreview.limited!==limited){audioPreview.limiter.curve=limited?audioPreview.curve:null;audioPreview.limited=limited;}const mixLimited=layers.some(c=>!c.hidden&&assetFor(c)?.audio&&!c.audio?.muted)||audioTracks.some(t=>SahlAudioTracks.audible(t,mainTrack,audioTracks)&&t.clips.some(c=>c.at<total()));if(audioPreview.mixLimited!==mixLimited){audioPreview.masterLimiter.curve=mixLimited?audioPreview.curve:null;audioPreview.mixLimited=mixLimited;}video.volume=1;}
   else video.volume=Math.min(1,level);
-  const meter=$('clip-audio-meter');if(!meter)return;
+  if(typeof updateLayerAudio==='function')updateLayerAudio();if(typeof updateSecondaryAudio==='function')updateSecondaryAudio();const meter=$('clip-audio-meter');if(!meter)return;
   let peak=0;if(audioPreview&&playing){audioPreview.analyser.getFloatTimeDomainData(audioPreview.samples);for(const sample of audioPreview.samples)peak=Math.max(peak,Math.abs(sample));}
   meter.value=Math.min(1,peak);meter.title=peak>0?(20*Math.log10(peak)).toFixed(1)+' dBFS':'لا يوجد صوت';
 }
