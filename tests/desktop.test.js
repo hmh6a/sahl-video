@@ -1,11 +1,15 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),vm=require('node:vm'),{createRequire}=require('node:module'),{EventEmitter,once}=require('node:events');
 const dir=path.resolve('test-output'),requireApp=createRequire(path.resolve('app/main.js'));
-test('desktop IPC saves, reopens, relinks missing media and guards unsaved close',async()=>{
+test('desktop IPC saves, reopens, relinks missing media and guards unsaved close',async t=>{
  const folder=fs.mkdtempSync(path.join(dir,'desktop-v15-')),project=path.join(folder,'desktop.sahl'),handlers=new Map(),events=new Map(),open=[],save=[],answers=[],notifications=[],sent=new EventEmitter(),timers=[];let window;
  class FakeWindow extends EventEmitter{constructor(){super();window=this;this.webContents={setWindowOpenHandler(){},on(){},send:(name,value)=>{notifications.push({name,value});sent.emit(name,value);}};}setTitle(t){this.title=t;}loadFile(){}isDestroyed(){return false;}close(){const event={preventDefault(){this.prevented=true;}};this.emit('close',event);if(!event.prevented)this.closed=true;}}
  const electron={app:{whenReady:()=>Promise.resolve(),on(){},getPath:()=>folder,quit(){}},BrowserWindow:FakeWindow,ipcMain:{handle:(name,fn)=>handlers.set(name,fn),on:(name,fn)=>events.set(name,fn)},dialog:{showOpenDialog:async()=>open.shift()||{canceled:true},showSaveDialog:async()=>save.shift()||{canceled:true},showMessageBox:async()=>({response:answers.shift()??2})},shell:{showItemInFolder(){}},protocol:{registerSchemesAsPrivileged(){},handle(){}}};
  const sandbox={require:name=>name==='electron'?electron:name==='./encoding'?{detectEncoders:async()=>[]}:requireApp(name),__dirname:path.resolve('app'),console,Response,URL,Buffer,AbortController,setInterval:(fn,ms)=>{const timer={fn,ms,unref(){}};timers.push(timer);return timer;},clearInterval(timer){timer.cleared=true;}};vm.runInNewContext(fs.readFileSync('app/main.js','utf8'),sandbox);await new Promise(resolve=>setImmediate(resolve));
  const call=(name,...args)=>handlers.get(name)({},...args);
+ let stopWaiting=()=>{};
+ // A failed assertion or progress timeout must not leave an encoder competing
+ // with the remaining tests on a shared CI runner.
+ t.after(async()=>{stopWaiting();await call('cancel-export');});
  open.push({filePaths:[path.join(dir,'three-colors.mp4'),path.join(dir,'photo.png')]});const imported=await call('choose-media');assert.equal(imported.assets.length,2);const [a,b]=imported.assets;
  const {RecoveryStore}=require('../app/recovery');const crashed=new RecoveryStore(folder,{id:'old-crashed-session',ownerPid:2147483000});
  const raw={meta:{width:a.width,height:a.height,fps:a.fps},assetIds:[a.id,b.id],clips:[{assetId:a.id,start:0,end:1,transition:'fade'},{assetId:b.id,start:0,end:2}],titles:[{title:'محفوظ',position:'top-right',animation:'slide-up',titleStart:.5,titleDuration:2}],cursor:1.2,resolution:'source'};
@@ -25,7 +29,19 @@ test('desktop IPC saves, reopens, relinks missing media and guards unsaved close
  fs.writeFileSync(srtFile,'bad SRT');open.push({filePaths:[srtFile]});assert.ok((await call('import-srt')).error);open.push({canceled:true});assert.equal((await call('import-srt')).canceled,true);
  const captionOutput=path.join(folder,'captions.mp4'),png='data:image/png;base64,'+fs.readFileSync(path.join(dir,'photo.png')).toString('base64');assert.ok((await call('export',{...raw,encoder:'cpu',titles:[],captionFrames:[{png,frames:1}]})).error);save.push({filePath:captionOutput});const captionDone=once(sent,'complete');assert.equal((await call('export',{...raw,encoder:'cpu',titles:[],captionFrames:[{png,frames:90}],captionPath:'/ignored-renderer-path'})).started,true);assert.ok(!(await captionDone)[0].error);assert.ok(fs.existsSync(captionOutput));
  // Cancel a live real encoder, retain any existing target, then export again.
- const protectedOutput=path.join(folder,'keep-existing.mp4');fs.writeFileSync(protectedOutput,'existing target bytes');save.push({filePath:protectedOutput});const processing=new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{sent.off('progress',listener);reject(new Error('Encoder made no progress'));},15000);const listener=p=>{if(p.percent>0&&p.percent<99){clearTimeout(timeout);sent.off('progress',listener);resolve();}};sent.on('progress',listener);});const canceledDone=once(sent,'complete');assert.equal((await call('export',{...raw,meta:{...raw.meta,width:3840,height:2160},encoder:'cpu',resolution:'source',titles:[],clips:[{assetId:b.id,start:0,end:30}]})).started,true);
+ const protectedOutput=path.join(folder,'keep-existing.mp4');fs.writeFileSync(protectedOutput,'existing target bytes');save.push({filePath:protectedOutput});
+ const processing=new Promise((resolve,reject)=>{
+  const listener=p=>{if(p.percent>0&&p.percent<99){stopWaiting();resolve();}};
+  const complete=result=>{stopWaiting();reject(new Error(result.error||'Encoder completed before the cancellation check'));};
+  const timeout=setTimeout(()=>{stopWaiting();reject(new Error('Encoder made no progress within 30 seconds'));},30000);
+  stopWaiting=()=>{clearTimeout(timeout);sent.off('progress',listener);sent.off('complete',complete);};
+  sent.on('progress',listener);sent.on('complete',complete);
+ });
+ // Long duration keeps the real encoder alive until cancellation; a small
+ // frame avoids making this IPC test depend on 4K throughput or memory.
+ const canceledDone=once(sent,'complete');
+ const cancelStarted=await call('export',{...raw,meta:{...raw.meta,width:640,height:360},encoder:'cpu',resolution:'source',titles:[],clips:[{assetId:b.id,start:0,end:600}]});
+ if(!cancelStarted.started){stopWaiting();assert.fail(cancelStarted.error||'Cancellation export did not start');}
  await processing;const stop=await call('cancel-export');assert.equal(stop.canceled,true);const [canceled]=await canceledDone;assert.equal(canceled.canceled,true);assert.equal(canceled.timing.phase,'stopped');assert.equal(fs.readFileSync(protectedOutput,'utf8'),'existing target bytes');assert.equal(fs.readdirSync(folder).filter(n=>n.startsWith('.sahl-')).length,0);assert.ok(timers.filter(t=>t.ms===1000).every(t=>t.cleared));assert.equal((await call('cancel-export')).notRunning,true);
  const afterCancel=path.join(folder,'after-cancel.mp4');save.push({filePath:afterCancel});const againDone=once(sent,'complete');assert.equal((await call('export',{...raw,encoder:'cpu',titles:[]})).started,true);assert.ok(!(await againDone)[0].error);assert.ok(fs.existsSync(afterCancel));
  // Real HDR import/export through IPC: the backend chooses a trusted HEVC encoder.
