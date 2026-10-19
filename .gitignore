@@ -22,3 +22,6 @@ dist-1.8/
 /release/
 
 /release-input/
+
+# Platform-specific speech runtime (built and verified before packaging)
+/app/native/transcription/

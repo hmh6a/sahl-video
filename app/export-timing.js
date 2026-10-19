@@ -1,4 +1,9 @@
-function resetExportTiming(){$('export-timing').hidden=true;$('export-elapsed').textContent='00:00';$('export-remaining').textContent='جارٍ الحساب…';$('export-finish').textContent='';}
+function resetExportTiming(){$('export-timing').hidden=true;$('export-elapsed').textContent='00:00';$('export-remaining').textContent='جارٍ الحساب…';$('export-finish').textContent='';$('export-completed').hidden=true;$('export-completed-duration').textContent='';}
+function showExportCompletion(timing){
+  if(timing?.phase!=='complete'||!Number.isFinite(timing.elapsedSeconds)||timing.elapsedSeconds<0)return;
+  $('export-completed-duration').textContent=seconds(timing.elapsedSeconds);
+  $('export-completed').hidden=false;
+}
 function showExportTiming(p){
   if(!p||typeof p!=='object')return;$('export-timing').hidden=false;$('export-elapsed').textContent=seconds(p.elapsedSeconds);
   const estimating=Number.isFinite(p.remainingSeconds),done=p.phase==='complete',stopped=p.phase==='stopped';

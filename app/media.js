@@ -12,7 +12,7 @@ function byteRange(value,size){
 }
 async function mediaResponse(file,request){
   const size=(await fs.promises.stat(file)).size,r=byteRange(request.headers.get('range'),size);
-  const headers={'Accept-Ranges':'bytes','Content-Type':({'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.bmp':'image/bmp','.mp4':'video/mp4','.m4v':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.mkv':'video/x-matroska'})[path.extname(file).toLowerCase()]||'application/octet-stream','Cache-Control':'no-store'};
+  const headers={'Access-Control-Allow-Origin':'*','Accept-Ranges':'bytes','Content-Type':({'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.bmp':'image/bmp','.mp4':'video/mp4','.m4v':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.mkv':'video/x-matroska','.mp3':'audio/mpeg','.wav':'audio/wav','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.ogg':'audio/ogg','.opus':'audio/ogg'})[path.extname(file).toLowerCase()]||'application/octet-stream','Cache-Control':'no-store'};
   if(!r)return new Response(null,{status:416,headers:{...headers,'Content-Range':`bytes */${size}`}});
   headers['Content-Length']=String(r.end-r.start+1);
   if(r.status===206)headers['Content-Range']=`bytes ${r.start}-${r.end}/${size}`;

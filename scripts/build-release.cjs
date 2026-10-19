@@ -8,16 +8,32 @@ async function run(){
   for(const key of credentials)if(typeof process.env[key]==='string'&&!process.env[key].trim())delete process.env[key];
   const signed=mac&&!!process.env.CSC_LINK;
   if(mac&&credentials.some(k=>process.env[k])&&!credentials.every(k=>process.env[k]))throw Error('Mac signing requires CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID');
-  const config={extraMetadata:{sahlAutoUpdate:!mac||signed}};
+  const {prepare}=require('./prepare-transcription.cjs');
+  const runtime=await prepare(),target=process.platform+'-'+process.arch;
+  const config={extraMetadata:{sahlAutoUpdate:!mac||signed},files:[
+    'app/**/*','package.json','LICENSE','!app/native/transcription/**/*',
+    {from:runtime.directory,to:'app/native/transcription/'+target,filter:['whisper-cli','whisper-cli.exe','ggml-silero-v5.1.2.bin','build.json','*-LICENSE.txt']}
+  ]};
   if(mac){
     config.mac={identity:signed?undefined:'-',hardenedRuntime:signed,forceCodeSigning:signed,notarize:signed,binaries:[
       'Contents/Resources/app.asar.unpacked/node_modules/ffmpeg-static/ffmpeg',
+      `Contents/Resources/app.asar.unpacked/app/native/transcription/${target}/whisper-cli`,
       `Contents/Resources/app.asar.unpacked/node_modules/@ffprobe-installer/darwin-${process.arch}/ffprobe`
     ]};
     if(!signed)console.log('Building an unsigned Mac release. Direct updates stay disabled until Apple signing secrets are configured.');
   }
   const {build,Platform,Arch}=require('electron-builder');
-  await build({targets:(mac?Platform.MAC:Platform.WINDOWS).createTarget(mac?['dmg','zip']:['nsis'],Arch[process.arch]),publish:'never',config});
+  // PR validation needs a fresh ad-hoc signature after packaging modifies Electron.
+  // Only enable this for the explicit, keyless identity above; signed builds keep
+  // electron-builder's normal PR credential guard.
+  const previousPrSigning=process.env.CSC_FOR_PULL_REQUEST;
+  if(mac&&!signed)process.env.CSC_FOR_PULL_REQUEST='true';
+  try{
+    await build({targets:(mac?Platform.MAC:Platform.WINDOWS).createTarget(mac?['dmg','zip']:['nsis'],Arch[process.arch]),publish:'never',config});
+  }finally{
+    if(previousPrSigning===undefined)delete process.env.CSC_FOR_PULL_REQUEST;
+    else process.env.CSC_FOR_PULL_REQUEST=previousPrSigning;
+  }
   const pkg=require('../package.json'),base=mac?`Sahl-Video-${pkg.version}-mac-${process.arch}`:`Sahl-Video-${pkg.version}`;
   for(const ext of mac?['dmg','zip']:['exe']){
     const file=path.resolve(pkg.build.directories.output,base+'.'+ext);

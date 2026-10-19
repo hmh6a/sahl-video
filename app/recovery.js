@@ -6,9 +6,9 @@ class RecoveryStore{
   constructor(directory,{id=crypto.randomUUID(),ownerPid=process.pid,isAlive=alive,now=Date.now}={}){this.directory=path.join(directory,'recovery');this.id=id;this.ownerPid=ownerPid;this.isAlive=isAlive;this.now=now;this.generation=0;this.fingerprint=null;}
   file(id,slot){if(!/^[a-zA-Z0-9-]{1,80}$/.test(id))throw new Error('نسخة الاسترجاع غير صالحة.');return path.join(this.directory,id+'.'+slot+'.sahl');}
   save(raw,registry,{projectPath=null,portable=false,force=false}={}){
-    const ids=[...new Set(raw.assetIds||raw.clips.map(c=>c.assetId))],assets={};
+    const ids=Project.assetIds(raw),assets={};
     for(const id of ids){if(!registry[id])throw new Error('ملف من ملفات المشروع مفقود.');assets[id]=registry[id];}
-    const clean=Project.state(raw,assets),document={app:'sahl-video',version:1,...clean,assets:Object.entries(assets).map(([id,a])=>({id,kind:a.kind,name:a.name||path.basename(a.path),path:path.resolve(a.path)}))};
+    const clean=Project.state(raw,assets),document={app:'sahl-video',version:Project.VERSION,...clean,assets:Object.entries(assets).map(([id,a])=>({id,kind:a.kind,name:a.name||path.basename(a.path),path:path.resolve(a.path)}))};
     const fingerprint=JSON.stringify({document,projectPath,portable});if(!force&&fingerprint===this.fingerprint)return null;
     const savedAt=this.now(),generation=this.generation+1;
     document.recovery={id:this.id,ownerPid:this.ownerPid,generation,savedAt,projectPath,portable};

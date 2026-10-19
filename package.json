@@ -7,12 +7,14 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "dist": "electron-builder --win nsis --x64",
+    "dist": "node scripts/build-release.cjs",
     "pretest": "node tests/fixtures.cjs",
     "preview": "node tests/fixtures.cjs --preview && node tests/preview-server.js",
     "dist:mac": "node scripts/build-release.cjs",
     "dist:release": "node scripts/build-release.cjs",
-    "verify:package": "node scripts/verify-package.cjs"
+    "verify:package": "node scripts/verify-package.cjs",
+    "prepare:transcription": "node scripts/prepare-transcription.cjs",
+    "verify:speech": "node tests/speech-runtime.cjs"
   },
   "dependencies": {
     "@ffprobe-installer/ffprobe": "2.1.2",
@@ -33,13 +35,15 @@
     "files": [
       "app/**/*",
       "package.json",
-      "LICENSE"
+      "LICENSE",
+      "!app/native/transcription/**/*"
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/ffmpeg",
       "node_modules/ffmpeg-static/ffmpeg.exe",
       "node_modules/@ffprobe-installer/**/ffprobe",
-      "node_modules/@ffprobe-installer/**/ffprobe.exe"
+      "node_modules/@ffprobe-installer/**/ffprobe.exe",
+      "app/native/transcription/**/*"
     ],
     "win": {
       "target": "nsis",

@@ -1,10 +1,15 @@
 const {contextBridge,ipcRenderer,webUtils}=require('electron');
 contextBridge.exposeInMainWorld('sahl',{
  updateStatus:()=>ipcRenderer.invoke('update-status'),checkUpdates:()=>ipcRenderer.invoke('check-updates'),downloadUpdate:()=>ipcRenderer.invoke('download-update'),cancelUpdate:()=>ipcRenderer.invoke('cancel-update'),installUpdate:()=>ipcRenderer.invoke('install-update'),onUpdate:fn=>ipcRenderer.on('update-status',(_,value)=>fn(value)),
+ transcriptionStatus:()=>ipcRenderer.invoke('transcription-status'),transcriptionDownload:()=>ipcRenderer.invoke('transcription-download'),transcriptionCancel:()=>ipcRenderer.invoke('transcription-cancel'),transcriptionClear:()=>ipcRenderer.invoke('transcription-clear'),transcribe:request=>ipcRenderer.invoke('transcription-start',request),onTranscription:fn=>ipcRenderer.on('transcription-progress',(_,p)=>fn(p)),
+ recentProjects:()=>ipcRenderer.invoke('list-recent-projects'),removeRecentProject:file=>ipcRenderer.invoke('remove-recent-project',file),openRecentProject:(file,state,relocate)=>ipcRenderer.invoke('open-recent-project',file,state,relocate),
  listTemplates:()=>ipcRenderer.invoke('list-templates'),saveLayout:(name,titles)=>ipcRenderer.invoke('save-layout',name,titles),
+ proxyLookup:(id,size)=>ipcRenderer.invoke('proxy-lookup',id,size),proxyCreate:(id,size)=>ipcRenderer.invoke('proxy-create',id,size),proxyCancel:id=>ipcRenderer.invoke('proxy-cancel',id),proxyStats:()=>ipcRenderer.invoke('proxy-stats'),proxyClear:()=>ipcRenderer.invoke('proxy-clear'),onProxy:fn=>ipcRenderer.on('proxy-progress',(_,p)=>fn(p)),
+ importSRT:()=>ipcRenderer.invoke('import-srt'),exportSRT:track=>ipcRenderer.invoke('export-srt',track),
  encoders:()=>ipcRenderer.invoke('encoders'),fonts:()=>ipcRenderer.invoke('fonts'),
  onImportProgress:fn=>ipcRenderer.on('import-progress',(_,value)=>fn(value)),
  choose:kind=>ipcRenderer.invoke('choose-media',kind),importFiles:files=>ipcRenderer.invoke('import-media',Array.from(files).map(file=>webUtils.getPathForFile(file)).filter(Boolean)),
+ waveform:id=>ipcRenderer.invoke('waveform',id),
  thumbnail:(id,t)=>ipcRenderer.invoke('thumbnail',id,t),frame:(id,t)=>ipcRenderer.invoke('frame',id,t),
  cancelProjectSave:()=>ipcRenderer.invoke('cancel-project-save'),onProjectCopy:fn=>ipcRenderer.on('project-copy',(_,value)=>fn(value)),
  listRecovery:()=>ipcRenderer.invoke('list-recovery'),restoreRecovery:(id,state)=>ipcRenderer.invoke('restore-recovery',id,state),onAutosave:fn=>ipcRenderer.on('autosave',(_,value)=>fn(value)),
