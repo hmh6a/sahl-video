@@ -115,6 +115,7 @@ npx electron tests/electron-motion.cjs
 npx electron tests/electron-layers.cjs
 npx electron tests/electron-captions.cjs
 npx electron tests/electron-workflow.cjs
+npx electron tests/electron-integrated-ui.cjs
 npm run dist:release
 npm run verify:package
 ```

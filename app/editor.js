@@ -121,7 +121,7 @@ $('play').onclick=async()=>{
  try{await playSegment(at.index,at.local,controller);if(controller.signal.aborted)return;playing=true;raf=requestAnimationFrame(tick);}catch(e){if(!controller.signal.aborted)status(e.message,true);}
 };
 // Bind to the media itself so selecting or dragging a title never toggles playback.
-for(const media of [video,$('still')]){
+for(const media of [video,$('still'),$('fallback')]){
  media.title='اضغط للتشغيل أو الإيقاف المؤقت';
  media.addEventListener('click',()=>{$('play').click();});
 }

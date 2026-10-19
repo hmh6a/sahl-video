@@ -56,6 +56,8 @@ jobs:
         run: npx electron tests/electron-captions.cjs
       - name: Test editor workflow in Electron
         run: npx electron tests/electron-workflow.cjs
+      - name: Test integrated preview, recovery and export workflow
+        run: npx electron tests/electron-integrated-ui.cjs
       - name: Build Windows installer or Mac DMG and update ZIP
         run: npm run dist:release
       - name: Verify packaged export and offline speech
