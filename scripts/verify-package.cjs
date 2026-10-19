@@ -14,10 +14,18 @@ function windowsImports(bytes){
 function resourcesPath(platform=process.platform,arch=process.arch){
   return path.resolve(pkg.build.directories.output,platform==='win32'?'win-unpacked':arch==='x64'?'mac':`mac-${arch}`,...(platform==='win32'?['resources']:[pkg.build.productName+'.app','Contents','Resources']));
 }
+function verifyDirectory(archive,directory){
+  // asar traverses paths using the host separator, including backslashes on Windows.
+  for(const entry of fs.readdirSync(directory,{withFileTypes:true})){
+    const file=path.join(directory,entry.name);
+    if(file===path.join('app','native'))continue;
+    if(entry.isDirectory())verifyDirectory(archive,file);
+    else if(!fs.readFileSync(file).equals(asar.extractFile(archive,file)))throw Error(`Packaged source differs: ${file}`);
+  }
+}
 function verifyPackage(){
   const resources=resourcesPath(),archive=path.join(resources,'app.asar'),unpacked=archive+'.unpacked';
-  function verifyDirectory(directory){for(const entry of fs.readdirSync(directory,{withFileTypes:true})){const file=path.join(directory,entry.name);if(file===path.join('app','native'))continue;if(entry.isDirectory())verifyDirectory(file);else if(!fs.readFileSync(file).equals(asar.extractFile(archive,file.split(path.sep).join('/'))))throw Error(`Packaged source differs: ${file}`);}}
-  verifyDirectory('app');
+  verifyDirectory(archive,'app');
   const suffix=process.platform==='win32'?'.exe':'',target=process.platform+'-'+process.arch;
   const entries=asar.listPackage(archive).map(f=>f.replaceAll('\\','/'));
   if(entries.some(f=>/\/(?:test-output|\.local-plans|scripts|tests)(?:\/|$)/.test(f)&&!f.startsWith('/node_modules/')))throw Error('Development files leaked into the package');
@@ -74,4 +82,4 @@ function verifyPackage(){
   return {resources,package:JSON.parse(asar.extractFile(archive,'package.json'))};
 }
 if(require.main===module)verifyPackage();
-module.exports={verifyPackage,resourcesPath,windowsImports};
+module.exports={verifyPackage,verifyDirectory,resourcesPath,windowsImports};

@@ -23,7 +23,17 @@ async function run(){
     if(!signed)console.log('Building an unsigned Mac release. Direct updates stay disabled until Apple signing secrets are configured.');
   }
   const {build,Platform,Arch}=require('electron-builder');
-  await build({targets:(mac?Platform.MAC:Platform.WINDOWS).createTarget(mac?['dmg','zip']:['nsis'],Arch[process.arch]),publish:'never',config});
+  // PR validation needs a fresh ad-hoc signature after packaging modifies Electron.
+  // Only enable this for the explicit, keyless identity above; signed builds keep
+  // electron-builder's normal PR credential guard.
+  const previousPrSigning=process.env.CSC_FOR_PULL_REQUEST;
+  if(mac&&!signed)process.env.CSC_FOR_PULL_REQUEST='true';
+  try{
+    await build({targets:(mac?Platform.MAC:Platform.WINDOWS).createTarget(mac?['dmg','zip']:['nsis'],Arch[process.arch]),publish:'never',config});
+  }finally{
+    if(previousPrSigning===undefined)delete process.env.CSC_FOR_PULL_REQUEST;
+    else process.env.CSC_FOR_PULL_REQUEST=previousPrSigning;
+  }
   const pkg=require('../package.json'),base=mac?`Sahl-Video-${pkg.version}-mac-${process.arch}`:`Sahl-Video-${pkg.version}`;
   for(const ext of mac?['dmg','zip']:['exe']){
     const file=path.resolve(pkg.build.directories.output,base+'.'+ext);

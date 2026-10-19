@@ -5,19 +5,25 @@ function setup({env={},platform='darwin',arch='arm64',missing,fail,speechFail}={
  const target={createTarget:(names,arch)=>({names,arch})};
  const builder={Platform:{MAC:target,WINDOWS:target},Arch:{arm64:'arm64',x64:'x64'},async build(options){calls.push({options,env:{...processMock.env}});if(fail)throw Error('signing failed');}};
  vm.runInNewContext(source,{module,process:processMock,console:{log(){}},require:name=>name==='./prepare-transcription.cjs'?{async prepare(){if(speechFail)throw Error('speech preparation failed');return {directory:'/verified/runtime'};}}:name==='electron-builder'?builder:name==='node:fs'?{existsSync(file){checked.push(file);return !file.endsWith(missing||'.missing');},statSync:()=>({size:100})}:name==='../package.json'?{version:'1.0.2',build:{directories:{output:'dist'}}}:require(name)});
- return {run:module.exports.run,calls,checked};
+ return {run:module.exports.run,calls,checked,env:processMock.env};
 }
 test('empty GitHub signing secrets produce unsigned Mac installers for both architectures',async()=>{
  for(const arch of ['arm64','x64']){
   const d=setup({arch,env:{CSC_LINK:'',CSC_KEY_PASSWORD:'',APPLE_ID:'',APPLE_APP_SPECIFIC_PASSWORD:'',APPLE_TEAM_ID:'',UNRELATED:'kept'}});await d.run();
-  const {options,env}=d.calls[0];assert.deepEqual(env,{UNRELATED:'kept'});assert.equal(options.config.mac.identity,'-');assert.equal(options.config.mac.notarize,false);assert.equal(options.config.extraMetadata.sahlAutoUpdate,false);
+  const {options,env}=d.calls[0];assert.deepEqual(env,{UNRELATED:'kept',CSC_FOR_PULL_REQUEST:'true'});assert.deepEqual(d.env,{UNRELATED:'kept'});assert.equal(options.config.mac.identity,'-');assert.equal(options.config.mac.notarize,false);assert.equal(options.config.extraMetadata.sahlAutoUpdate,false);
   assert.deepEqual(Array.from(options.targets.names),['dmg','zip']);assert.equal(options.targets.arch,arch);assert.ok(d.checked.some(f=>f.endsWith(`Sahl-Video-1.0.2-mac-${arch}.dmg`)));assert.ok(d.checked.some(f=>f.endsWith(`Sahl-Video-1.0.2-mac-${arch}.zip`)));
  }
 });
 test('signed credentials are preserved and incomplete signing fails before building',async()=>{
- const env={CSC_LINK:'certificate.p12',CSC_KEY_PASSWORD:' password with spaces ',APPLE_ID:'dev@example.com',APPLE_APP_SPECIFIC_PASSWORD:'secret',APPLE_TEAM_ID:'team'};
+ const env={GITHUB_BASE_REF:'main',CSC_LINK:'certificate.p12',CSC_KEY_PASSWORD:' password with spaces ',APPLE_ID:'dev@example.com',APPLE_APP_SPECIFIC_PASSWORD:'secret',APPLE_TEAM_ID:'team'};
  const d=setup({env});await d.run();assert.deepEqual(d.calls[0].env,env);assert.equal(d.calls[0].options.config.mac.notarize,true);assert.equal(d.calls[0].options.config.extraMetadata.sahlAutoUpdate,true);
  for(const partial of [{CSC_LINK:'certificate.p12'},{APPLE_ID:'dev@example.com',CSC_LINK:'  '}]){const d=setup({env:partial});await assert.rejects(d.run(),/Mac signing requires/);assert.equal(d.calls.length,0);}
+});
+test('PR signing override applies only to keyless Mac builds and is restored on failure',async()=>{
+ const d=setup({env:{GITHUB_BASE_REF:'main',CSC_FOR_PULL_REQUEST:'false'},fail:true});
+ await assert.rejects(d.run(),/signing failed/);
+ assert.equal(d.calls[0].env.CSC_FOR_PULL_REQUEST,'true');assert.equal(d.calls[0].options.config.mac.identity,'-');assert.equal(d.env.CSC_FOR_PULL_REQUEST,'false');
+ const win=setup({platform:'win32',arch:'x64',env:{GITHUB_BASE_REF:'main'}});await win.run();assert.equal(win.calls[0].env.CSC_FOR_PULL_REQUEST,undefined);
 });
 test('missing installers and builder rejection fail in the build step; Windows remains an NSIS build',async()=>{
  for(const missing of ['.dmg','.zip'])await assert.rejects(setup({missing}).run(),/required installer/);

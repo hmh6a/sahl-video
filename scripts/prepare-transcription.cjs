@@ -1,5 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{execFileSync}=require('node:child_process');
 const {ENGINE_COMMIT:COMMIT,VAD}=require('../app/speech-config');
+const {fetchSpeechSource}=require('./fetch-speech-source.cjs');
 const root=path.resolve(__dirname,'..');
 function runtimeDirectory(platform=process.platform,arch=process.arch){if(!((platform==='darwin'&&['arm64','x64'].includes(arch))||(platform==='win32'&&arch==='x64')))throw Error('Unsupported transcription platform: '+platform+'-'+arch);return path.join(root,'app','native','transcription',platform+'-'+arch);}
 function hash(file){return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');}
@@ -11,7 +12,7 @@ async function prepare({arch=process.arch}={}){
  try{const cached=assertRuntime(platform,arch);console.log('Verified cached speech runtime: '+target);return cached;}catch{}
  const run=(cmd,args,cwd=root)=>execFileSync(cmd,args,{cwd,stdio:'inherit'});
  if(!fs.existsSync(path.join(source,'.git'))){fs.mkdirSync(source,{recursive:true});run('git',['init'],source);run('git',['remote','add','origin','https://github.com/ggml-org/whisper.cpp.git'],source);}
- run('git',['fetch','--depth','1','origin',COMMIT],source);run('git',['checkout','--detach',COMMIT],source);
+ await fetchSpeechSource(source,COMMIT);run('git',['checkout','--detach',COMMIT],source);
  const flags=['-DCMAKE_BUILD_TYPE=Release','-DBUILD_SHARED_LIBS=OFF','-DGGML_NATIVE=OFF','-DGGML_METAL=OFF','-DGGML_OPENMP=OFF','-DWHISPER_BUILD_TESTS=OFF','-DWHISPER_BUILD_EXAMPLES=ON',...['SSE42','AVX','AVX2','AVX512','F16C','FMA','BMI2'].map(x=>'-DGGML_'+x+'=OFF')];
  if(platform==='darwin')flags.push('-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0','-DCMAKE_OSX_ARCHITECTURES='+(arch==='x64'?'x86_64':'arm64'));
  if(platform==='win32')flags.push('-A','x64','-DCMAKE_POLICY_DEFAULT_CMP0091=NEW','-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded$<$<CONFIG:Debug>:Debug>');
