@@ -61,6 +61,8 @@ jobs:
         run: npx electron tests/electron-workflow.cjs
       - name: Test integrated preview, recovery and export workflow
         run: npx electron tests/electron-integrated-ui.cjs
+      - name: Test autosave location and media migration
+        run: npx electron tests/electron-recovery-location.cjs
       - name: Build Windows installer or Mac DMG and update ZIP
         run: npm run dist:release
         env:

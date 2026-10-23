@@ -1,5 +1,8 @@
 const {contextBridge,ipcRenderer,webUtils}=require('electron');
 contextBridge.exposeInMainWorld('sahl',{
+ recoverySettings:()=>ipcRenderer.invoke('recovery-settings'),chooseRecoveryLocation:()=>ipcRenderer.invoke('choose-recovery-location'),onRecoveryLocation:fn=>ipcRenderer.on('recovery-location',(_,value)=>fn(value)),
+ renderQueue:()=>ipcRenderer.invoke('render-queue'),cancelQueuedExport:id=>ipcRenderer.invoke('cancel-queued-export',id),moveQueuedExport:(id,direction)=>ipcRenderer.invoke('move-queued-export',id,direction),onRenderQueue:fn=>ipcRenderer.on('render-queue',(_,value)=>fn(value)),
+ newProjectTab:()=>ipcRenderer.invoke('new-project-tab'),onProjectActive:fn=>ipcRenderer.on('project-active',(_,active)=>fn(active)),renderSettings:()=>ipcRenderer.invoke('render-settings'),setRenderLimit:limit=>ipcRenderer.invoke('set-render-limit',limit),onRenderSettings:fn=>ipcRenderer.on('render-settings',(_,value)=>fn(value)),
  updateStatus:()=>ipcRenderer.invoke('update-status'),checkUpdates:()=>ipcRenderer.invoke('check-updates'),downloadUpdate:()=>ipcRenderer.invoke('download-update'),cancelUpdate:()=>ipcRenderer.invoke('cancel-update'),installUpdate:()=>ipcRenderer.invoke('install-update'),onUpdate:fn=>ipcRenderer.on('update-status',(_,value)=>fn(value)),
  transcriptionStatus:()=>ipcRenderer.invoke('transcription-status'),transcriptionDownload:()=>ipcRenderer.invoke('transcription-download'),transcriptionCancel:()=>ipcRenderer.invoke('transcription-cancel'),transcriptionClear:()=>ipcRenderer.invoke('transcription-clear'),transcribe:request=>ipcRenderer.invoke('transcription-start',request),onTranscription:fn=>ipcRenderer.on('transcription-progress',(_,p)=>fn(p)),
  recentProjects:()=>ipcRenderer.invoke('list-recent-projects'),removeRecentProject:file=>ipcRenderer.invoke('remove-recent-project',file),openRecentProject:(file,state,relocate)=>ipcRenderer.invoke('open-recent-project',file,state,relocate),
@@ -12,8 +15,9 @@ contextBridge.exposeInMainWorld('sahl',{
  waveform:id=>ipcRenderer.invoke('waveform',id),
  thumbnail:(id,t)=>ipcRenderer.invoke('thumbnail',id,t),frame:(id,t)=>ipcRenderer.invoke('frame',id,t),
  cancelProjectSave:()=>ipcRenderer.invoke('cancel-project-save'),onProjectCopy:fn=>ipcRenderer.on('project-copy',(_,value)=>fn(value)),
- listRecovery:()=>ipcRenderer.invoke('list-recovery'),restoreRecovery:(id,state)=>ipcRenderer.invoke('restore-recovery',id,state),onAutosave:fn=>ipcRenderer.on('autosave',(_,value)=>fn(value)),
+ listRecovery:()=>ipcRenderer.invoke('list-recovery'),restoreRecovery:(id,state,locateMissing=false)=>ipcRenderer.invoke('restore-recovery',id,state,locateMissing),onAutosave:fn=>ipcRenderer.on('autosave',(_,value)=>fn(value)),
  saveProject:(state,saveAs)=>ipcRenderer.invoke('save-project',state,saveAs),openProject:state=>ipcRenderer.invoke('open-project',state),projectState:(state,dirty)=>ipcRenderer.send('project-state',state,dirty),
  export:opts=>ipcRenderer.invoke('export',opts),cancel:()=>ipcRenderer.invoke('cancel-export'),showOutput:()=>ipcRenderer.invoke('show-output'),
+ onProjectRenamed:fn=>ipcRenderer.on('project-renamed',(_,value)=>fn(value)),
  onProjectSaved:fn=>ipcRenderer.on('project-saved',(_,value)=>fn(value)),onProgress:fn=>ipcRenderer.on('progress',(_,value)=>fn(value)),onComplete:fn=>ipcRenderer.on('complete',(_,value)=>fn(value))
 });
