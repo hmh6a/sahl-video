@@ -6,6 +6,7 @@ A free, open-source video editor for Windows and macOS with an Arabic interface.
 
 ## Features
 
+- **Multiple projects and an export queue:** open **مشروع جديد +** or **اشتغل على مشروع آخر** during export to work in an independent window. Exports run one at a time by default. **إعدادات المعالجة** saves a shared limit of 1–4 simultaneous exports for CPU and GPU combined; choose a limit suitable for your hardware. Waiting exports start automatically and can be canceled independently. Closing a project with a pending export asks before canceling it. Keep the app open while the queue runs; queued exports are not restored after an app restart.
 - **Organized workspace:** larger preview, searchable media library with video/image filters, tabbed text controls, adjustable timeline height, and an in-app shortcut guide. UI numbers use English digits.
 - **Simple timeline editing:** split with the scissors tool, delete or reorder clips, scrub through thumbnails, and drag media onto the timeline.
 - **Speed and freeze frames:** play a video at 0.25×–4× with optional pitch preservation, or insert a silent hold of the frame at the playhead. Linked sound and titles follow timing changes.

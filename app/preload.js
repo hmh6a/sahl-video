@@ -1,5 +1,6 @@
 const {contextBridge,ipcRenderer,webUtils}=require('electron');
 contextBridge.exposeInMainWorld('sahl',{
+ newProjectWindow:()=>ipcRenderer.invoke('new-project-window'),renderSettings:()=>ipcRenderer.invoke('render-settings'),setRenderLimit:limit=>ipcRenderer.invoke('set-render-limit',limit),onRenderSettings:fn=>ipcRenderer.on('render-settings',(_,value)=>fn(value)),
  updateStatus:()=>ipcRenderer.invoke('update-status'),checkUpdates:()=>ipcRenderer.invoke('check-updates'),downloadUpdate:()=>ipcRenderer.invoke('download-update'),cancelUpdate:()=>ipcRenderer.invoke('cancel-update'),installUpdate:()=>ipcRenderer.invoke('install-update'),onUpdate:fn=>ipcRenderer.on('update-status',(_,value)=>fn(value)),
  transcriptionStatus:()=>ipcRenderer.invoke('transcription-status'),transcriptionDownload:()=>ipcRenderer.invoke('transcription-download'),transcriptionCancel:()=>ipcRenderer.invoke('transcription-cancel'),transcriptionClear:()=>ipcRenderer.invoke('transcription-clear'),transcribe:request=>ipcRenderer.invoke('transcription-start',request),onTranscription:fn=>ipcRenderer.on('transcription-progress',(_,p)=>fn(p)),
  recentProjects:()=>ipcRenderer.invoke('list-recent-projects'),removeRecentProject:file=>ipcRenderer.invoke('remove-recent-project',file),openRecentProject:(file,state,relocate)=>ipcRenderer.invoke('open-recent-project',file,state,relocate),
