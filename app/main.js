@@ -4,6 +4,7 @@ const {execFile}=require('node:child_process'),{promisify}=require('node:util');
 const {exportArgs}=require('./export'),timeline=require('./timeline'),Project=require('./project'),{saveBundle}=require('./project-bundle');
 const {detectEncoders}=require('./encoding'),{MediaLibrary}=require('./library'),{mediaResponse}=require('./media'),{TemplateStore}=require('./template-store');
 const {RecoveryStore,AutoSaver}=require('./recovery');
+const {resolveRecoveryMedia}=require('./recovery-media');
 const appPackage=require('../package.json'),appVersion=appPackage.version,{Updates}=require('./updates');
 const {randomUUID}=require('node:crypto'),{RenderQueue}=require('./render-queue'),{ProjectRouter}=require('./project-router');
 const projects=new Set(),router=new ProjectRouter(rootIPC);
@@ -37,7 +38,7 @@ const speech=new TranscriptionService(ffmpeg,unpack(path.join(__dirname,'native'
 const proxies=new ProxyService(ffmpeg,path.join(app.getPath('userData'),'project-proxies',sessionId),{notify:p=>message('proxy-progress',p)});
 let proxyMaintenance=false;
 const win=workspace.win;
-let view,contents,project,active,lastOutput,recovery,autoSaver,projectPath=null,projectState=null,dirty=false,closing=false,checkingClose=false,projectPortable=false,saving=false,projectAbort=null,importingMedia=false,opening=false,exportPreparing=false;
+let view,contents,project,active,lastOutput,recovery,autoSaver,projectPath=null,projectState=null,displayName='',dirty=false,closing=false,checkingClose=false,projectPortable=false,saving=false,projectAbort=null,importingMedia=false,opening=false,exportPreparing=false;
 function message(channel,value){
   if(project&&(channel==='progress'||channel==='complete')){project.status=channel==='progress'?value:{phase:value.path?'complete':value.error?'error':'stopped'};workspace.refresh();}
   if(contents&&!contents.isDestroyed())contents.send(channel,value);
@@ -45,10 +46,11 @@ function message(channel,value){
 function clearRecovery(){try{recovery?.clear();}catch(e){message('autosave',{phase:'error',message:e.message});}}
 async function cancelExport(){return active?active.cancel():{notRunning:true};}
 
-function title(){if(project){project.name=projectPath?path.basename(projectPath):'مشروع '+number;project.dirty=dirty;workspace.refresh();}}
+function title(){if(project){project.name=displayName||(projectPath?path.basename(projectPath):null);project.dirty=dirty;workspace.refresh();}}
 const mediaFilter=[{name:'Video & images',extensions:['mp4','mov','mkv','webm','m4v','avi','mts','png','jpg','jpeg','webp','bmp','mp3','wav','m4a','aac','flac','ogg','opus']}];
 const audioFilter=[{name:'Audio',extensions:['mp3','wav','m4a','aac','flac','ogg','opus']}];
 async function saveProject(raw,saveAs=false){
+  raw={...raw,displayName};
   if(saving||importingMedia)throw new Error('انتظر انتهاء الحفظ أو استيراد الملفات.');saving=true;
   try{
     let file=saveAs?null:projectPath;
@@ -82,7 +84,7 @@ async function keepChanges(){if(!dirty||!projectState)return true;const choice=a
     proxies.reset().then(()=>fs.promises.rm(proxies.directory,{recursive:true,force:true})).catch(()=>{});
     if(!contents.isDestroyed()){contents.session.protocol.unhandle('sahl-media');contents.close({waitForBeforeUnload:false});}
   }
-  project={id:sessionId,view,name:'مشروع '+number,dirty:false,status:null,message,confirmClose,dispose,keepChanges,capture:()=>autoSaver.capture(),prepareUpdate:value=>{closing=value;workspace.closing=value;},blocked:()=>!!(active||exportPreparing||speech.busy||saving||importingMedia||opening||checkingClose),sources:()=>[...Object.values(library.assets).map(a=>a.path),projectPath].filter(Boolean),speech};
+  project={id:sessionId,view,name:null,rename:name=>{if(saving||opening||installingUpdate)return {error:'انتظر انتهاء العملية الحالية.'};displayName=name;projectState={...projectState,displayName};dirty=true;title();message('project-renamed',{displayName});return {renamed:true};},dirty:false,status:null,message,confirmClose,dispose,keepChanges,capture:()=>autoSaver.capture(),prepareUpdate:value=>{closing=value;workspace.closing=value;},blocked:()=>!!(active||exportPreparing||speech.busy||saving||importingMedia||opening||checkingClose),sources:()=>[...Object.values(library.assets).map(a=>a.path),projectPath].filter(Boolean),speech};
   projects.add(project);workspace.add(project);contents.loadFile(path.join(__dirname,'index.html'));
   ipcMain.handle('new-project-tab',()=>workspace.create());
   ipcMain.handle('render-settings',()=>queue.settings());
@@ -109,17 +111,18 @@ ipcMain.handle('proxy-cancel',(_,id)=>{proxies.cancel(id);return {canceled:true}
 ipcMain.handle('proxy-stats',async()=>{const {bytes,limit}=await proxies.stats();return {bytes,limit};});
 ipcMain.handle('proxy-clear',async()=>{if(active||exportPreparing||speech.busy||saving||opening||proxyMaintenance)return {error:'انتظر انتهاء العملية الحالية.'};proxyMaintenance=true;try{const {bytes,limit}=await proxies.clear();return {bytes,limit};}catch(e){return {error:e.message};}finally{proxyMaintenance=false;}});
 ipcMain.handle('thumbnail',(_,id,t)=>library.frame(id,t,176));
-ipcMain.on('project-state',(_,raw,isDirty)=>{projectState=raw;if(isDirty)dirty=true;title();});
+ipcMain.on('project-state',(_,raw,isDirty)=>{projectState={...raw,displayName};if(isDirty)dirty=true;title();});
 ipcMain.handle('cancel-project-save',()=>{projectAbort?.abort();});
-ipcMain.handle('list-recovery',()=>recovery.list());
+function recoveryEntry(id){return resolveRecoveryMedia(recovery.read(id),recents.read().map(row=>row.path));}
+ipcMain.handle('list-recovery',()=>recovery.list().map(item=>{try{return {...item,missingCount:recoveryEntry(item.id).missingFiles.length};}catch{return item;}}));
 ipcMain.handle('save-project',async(_,raw,saveAs)=>{try{if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};return await saveProject(raw,saveAs);}catch(e){return {error:e.message};}});
-async function loadProject(file,recoveryId=null){
-  const {raw,sources}=recoveryId?recovery.read(recoveryId):Project.readProject(file),assets={};let relinked=false;
+async function loadProject(file,recoveryId=null,resolvedRecovery=null){
+  const {raw,sources}=recoveryId?(resolvedRecovery||recoveryEntry(recoveryId)):Project.readProject(file),assets={};let relinked=false;
   for(const source of sources){let location=source.resolved;if(!location){const relink=await dialog.showOpenDialog(win,{title:'حدد الملف المفقود: '+path.basename(source.path||source.relativePath),properties:['openFile'],filters:mediaFilter});if(relink.canceled)return {canceled:true};location=relink.filePaths[0];relinked=true;}const a=await library.inspect(location,source.id);if(a.kind!==source.kind)throw new Error('نوع الملف البديل مختلف عن الملف الأصلي.');a.name=source.name||path.basename(location);assets[source.id]=a;}
   const clean=Project.state(raw,assets),origin=recoveryId?raw.recovery.projectPath:file,nextPath=origin&&fs.existsSync(origin)?origin:null,nextPortable=recoveryId?raw.recovery.portable===true:raw.portable===true,nextState={...clean,assetIds:Object.keys(assets)};
   if(recoveryId){recovery.save(nextState,assets,{projectPath:nextPath,portable:nextPortable,force:true});try{recovery.clear(recoveryId);}catch{/* Keep the old recovery if Windows has it locked. */}}
   else clearRecovery();
-  await proxies.reset();library.replace(assets);projectPath=nextPath;projectPortable=nextPortable;projectState=nextState;dirty=relinked||!!recoveryId;title();
+  await proxies.reset();library.replace(assets);projectPath=nextPath;projectPortable=nextPortable;projectState=nextState;displayName=clean.displayName;dirty=relinked||!!recoveryId;title();
   message('autosave',{phase:recoveryId?'saved':'ready',...(recoveryId?{savedAt:Date.now()}: {})});
   if(!recoveryId)await rememberProject(projectPath,clean);
   return {state:clean,dirty,portable:projectPortable,assets:library.descriptors(),path:projectPath,name:projectPath?path.basename(projectPath):'مشروع مسترجع',recovered:!!recoveryId};
@@ -128,7 +131,7 @@ async function openProject(current,recentFile=null,relocate=false){
   if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};
   if(recentFile!==null&&(typeof recentFile!=='string'||!recents.read().some(r=>r.path===recentFile)))return {error:'اختصار المشروع غير موجود بالقائمة.'};
   opening=true;try{
-    if(current)projectState=current;if(!await keepChanges())return {canceled:true};
+    if(current)projectState={...current,displayName};if(!await keepChanges())return {canceled:true};
     let file=recentFile;
     if(!file||relocate){const chosen=await dialog.showOpenDialog(win,{title:relocate?'حدد مكان المشروع المنقول':'افتح مشروع سهل',properties:['openFile'],filters:[{name:'Sahl project',extensions:['sahl']}]});if(chosen.canceled)return {canceled:true};file=chosen.filePaths[0];}
     if(!fs.existsSync(file))return {error:'ملف المشروع مفقود: '+file+' — استخدم تحديد الموقع من المشاريع الأخيرة.'};
@@ -139,10 +142,14 @@ ipcMain.handle('open-project',(_,current)=>openProject(current));
 ipcMain.handle('list-recent-projects',()=>recents.list());
 ipcMain.handle('remove-recent-project',(_,file)=>{try{if(typeof file!=='string')throw new Error('مسار غير صالح.');recents.remove(file);return {removed:true};}catch(e){return {error:e.message};}});
 ipcMain.handle('open-recent-project',(_,file,current,relocate)=>openProject(current,file,relocate===true));
-ipcMain.handle('restore-recovery',async(_,id,current)=>{
-  if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};if(current)projectState=current;
-  if(!await keepChanges())return {canceled:true};opening=true;
-  try{return await loadProject(null,id);}catch(e){return {error:'تعذّر الاسترجاع: '+e.message};}finally{opening=false;}
+ipcMain.handle('restore-recovery',async(_,id,current,locateMissing=false)=>{
+  if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};opening=true;
+  try{
+    const entry=recoveryEntry(id);
+    if(entry.missingFiles.length&&locateMissing!==true)return {error:'القصات والنصوص محفوظة، لكن ملفات الوسائط التالية مو موجودة بمكانها. حدّد موقعها حتى نكمل الاسترجاع.',missingFiles:entry.missingFiles};
+    if(current)projectState={...current,displayName};if(!await keepChanges())return {canceled:true};
+    return await loadProject(null,id,entry);
+  }catch(e){return {error:'تعذّر الاسترجاع: '+e.message};}finally{opening=false;}
 });
 ipcMain.handle('transcription-status',()=>speech.status());
 ipcMain.handle('transcription-download',()=>{if(active||exportPreparing||saving||opening||importingMedia||installingUpdate)return {error:'انتظر انتهاء العملية الحالية.'};if([...projects].some(p=>p.speech!==speech&&p.speech.busy))return {error:'انتظر انتهاء التفريغ في المشروع الآخر.'};return speech.download();});
@@ -169,7 +176,7 @@ ipcMain.handle('export',async(_,opts)=>{
     autoSaver.capture();const args=exportArgs(library.assets,overlays,tempOutput,meta,opts);
     const codec=args[args.indexOf('-c:v')+1],queueEncoder=codec.startsWith('lib')?'CPU':supported.find(c=>c.id===codec.replace('hevc_','h264_'))?.name||codec;
     const {startExport}=require('./export-job');
-    active=startExport({queue,ffmpeg,args,work,tempOutput,output:chosen.filePath,name:path.parse(projectPath||first.path).name,encoder:queueEncoder,duration:ExportRange.normalize(opts.range,length,meta.fps).duration,
+    active=startExport({queue,ffmpeg,args,work,tempOutput,output:chosen.filePath,name:displayName||path.parse(projectPath||first.path).name,encoder:queueEncoder,duration:ExportRange.normalize(opts.range,length,meta.fps).duration,
       setIntervalFn:setInterval,clearIntervalFn:clearInterval,notify:p=>message('progress',p),onComplete:result=>{
         active=null;library.waveforms.setPaused(false);proxies.setPaused(false);if(result.path)lastOutput=result.path;message('complete',result);
       }});

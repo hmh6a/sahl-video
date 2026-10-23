@@ -90,10 +90,23 @@ app.whenReady().then(async()=>{
   await js(b,"$('export-dialog').close();clips[0].end=1;renderTimeline();titles=[];draw()");
   saves.push(path.join(folder,'complete.mp4'));await js(b,"openExport();$('export').onclick()");await until(()=>js(b,'testComplete.length===3'));
   assert.equal(await js(b,'testComplete[2].timing.phase'),'complete');assert.ok(fs.existsSync(path.join(folder,'complete.mp4')));
-  // A discarded last tab starts a clean editor without replacing the native window.
+  // Closing the only tab must never refresh it, discard edits or create another project.
   const lastId=(await js(hosts[0],'workspace.state()')).active;
-  await js(hosts[0],`workspace.close('${lastId}')`);await until(()=>windows.length===4);await ready(windows[3]);
-  assert.equal(b.isDestroyed(),true);assert.equal(hosts.length,1);assert.equal(await js(windows[3],'clips.length'),0);
+  const lastState=await js(b,'JSON.stringify(projectSnapshot())');
+  for(let i=0;i<3;i++)assert.equal((await js(hosts[0],`workspace.close('${lastId}')`)).lastTab,true);
+  assert.equal(b.isDestroyed(),false);assert.equal(windows.length,3);assert.equal(await js(b,'JSON.stringify(projectSnapshot())'),lastState);
+  await until(()=>js(hosts[0],"document.getElementById('project-count').textContent==='1'&&document.querySelector('.tab-close').hidden"));
+  await js(hosts[0],"document.querySelector('.tab-select').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));document.querySelector('.tab-rename').value='اسم ملغى';document.querySelector('.tab-rename').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+  assert.equal((await js(hosts[0],'workspace.state()')).tabs[0].name,'مشروع 1');
+  await js(hosts[0],"document.querySelector('.tab-select').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));document.querySelector('.tab-rename').value='مونتاج الألعاب';document.querySelector('.tab-rename').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))");
+  await until(()=>js(b,"projectDisplayName==='مونتاج الألعاب'"));
+  await js(b,'markDirty()');assert.equal((await js(hosts[0],'workspace.state()')).tabs[0].name,'مونتاج الألعاب');
+  assert.ok((await js(hosts[0],`workspace.rename('${lastId}', 'x'.repeat(65))`)).error);
+  saves.push(path.join(folder,'named.sahl'));await js(b,'saveCurrentProject(false)');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(folder,'named','named.sahl'))).displayName,'مونتاج الألعاب');
+  await js(hosts[0],"document.getElementById('new-tab').click()");await until(()=>windows.length===4);await ready(windows[3]);
+  await js(hosts[0],`workspace.close('${lastId}')`);await until(()=>b.isDestroyed());
+  assert.equal(hosts.length,1);assert.equal(await js(windows[3],'clips.length'),0);
   const clean=windows[3];await js(clean,"$('choose').onclick()");await js(clean,'seekTo(1)');await until(()=>js(clean,'!previewAbort'));
   await js(clean,"$('play').click()");await until(()=>js(clean,'playing'));
   await js(hosts[0],"document.getElementById('new-tab').click()");await until(()=>windows.length===5);await ready(windows[4]);

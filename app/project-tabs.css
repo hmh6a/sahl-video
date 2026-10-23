@@ -127,3 +127,5 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 #new-tab svg { width: 18px; height: 18px; }
 #workspace-error { font-size: 11px; color: #ffb8c4; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .tab-dirty[hidden], .tab-status[hidden], #workspace-error:empty { display: none; }
+.tab-close[hidden], .renaming .tab-select, .renaming .tab-close { display: none; }
+.tab-rename { width: calc(100% - 10px); margin: 0 5px; min-width: 0; height: 28px; border: 1px solid #b58af6; border-radius: 4px; background: #18131f; color: #f4effb; padding: 0 7px; font: inherit; font-size: 13px; outline: none; }

@@ -12,8 +12,9 @@ class ProjectWorkspace{
     for(const [channel,fn]of Object.entries({
       'workspace-state':()=>this.snapshot(),
       'workspace-new':()=>this.create(),
-      'workspace-select':id=>this.select(id),
-      'workspace-close':id=>this.closeTab(id)
+      'workspace-select':id=>this.select(id,false,false),
+      'workspace-close':id=>this.closeTab(id),
+      'workspace-rename':(id,name)=>this.rename(id,name)
     }))ipcMain.handle(channel,(event,...args)=>{
       if(event.sender!==contents)throw Error('طلب غير مسموح.');return fn(...args);
     });
@@ -24,11 +25,17 @@ class ProjectWorkspace{
     this.win.on('closed',()=>{for(const tab of this.tabs)tab.dispose();this.tabs=[];});
     this.win.loadFile(path.join(directory,'workspace.html'));
   }
-  snapshot(){return {active:this.active,busy:this.busy,tabs:this.tabs.map(tab=>({id:tab.id,name:tab.name,dirty:tab.dirty,status:tab.status}))};}
+  name(tab){return tab.name||'مشروع '+(this.tabs.indexOf(tab)+1);}
+  snapshot(){return {active:this.active,busy:this.busy,tabs:this.tabs.map(tab=>({id:tab.id,name:this.name(tab),dirty:tab.dirty,status:tab.status}))};}
+  rename(id,name){
+    const tab=this.tabs.find(t=>t.id===id);if(!tab||this.busy||!this.canChange())return {canceled:true};
+    if(typeof name!=='string'||name.trim().length>64||/[\x00-\x1f\x7f]/.test(name))return {error:'اكتب اسم من سطر واحد، بحد أقصى 64 حرف.'};
+    return tab.rename(name.trim());
+  }
   refresh(){
     if(this.win.isDestroyed())return;
     const active=this.tabs.find(tab=>tab.id===this.active);
-    this.win.setTitle(active?(active.dirty?'● ':'')+active.name+' — '+this.baseTitle:this.baseTitle);
+    this.win.setTitle(active?(active.dirty?'● ':'')+this.name(active)+' — '+this.baseTitle:this.baseTitle);
     this.win.webContents.send('workspace-state',this.snapshot());
   }
   layout(){
@@ -41,11 +48,11 @@ class ProjectWorkspace{
     tab.view.webContents.on('did-finish-load',()=>tab.message('project-active',this.active===tab.id));
     this.select(tab.id);return tab;
   }
-  select(id,force=false){
+  select(id,force=false,focusEditor=true){
     if(this.busy&&!force)return {canceled:true};const target=this.tabs.find(tab=>tab.id===id);if(!target)return {canceled:true};
     const previous=this.active;this.active=id;
     for(const tab of this.tabs){tab.view.setVisible(tab===target);if(previous!==id)tab.message('project-active',tab===target);}
-    if(!target.view.webContents.isDestroyed())target.view.webContents.focus();this.refresh();return {selected:true};
+    if(focusEditor&&!target.view.webContents.isDestroyed())target.view.webContents.focus();this.refresh();return {selected:true};
   }
   bindShortcuts(contents){
     contents.on('before-input-event',(event,input)=>{
@@ -60,6 +67,7 @@ class ProjectWorkspace{
     });
   }
   async closeTab(id){
+    if(this.tabs.length<=1)return {canceled:true,lastTab:true};
     const tab=this.tabs.find(t=>t.id===id);if(!tab||this.busy||!this.canChange())return {canceled:true};
     this.busy=true;this.select(id,true);
     try{
@@ -67,7 +75,7 @@ class ProjectWorkspace{
       const index=this.tabs.indexOf(tab);this.win.contentView.removeChildView(tab.view);this.tabs.splice(index,1);tab.dispose();
       this.active=null;if(this.tabs.length)this.select(this.tabs[Math.min(index,this.tabs.length-1)].id,true);
       return {closed:true};
-    }finally{this.busy=false;if(!this.tabs.length)this.create();this.refresh();}
+    }finally{this.busy=false;this.refresh();}
   }
   async closeWindow(){
     if(this.busy||!this.canChange())return;this.busy=true;this.refresh();

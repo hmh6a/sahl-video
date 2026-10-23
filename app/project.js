@@ -5,6 +5,7 @@ const AudioTracks=require('./audio-tracks');
 const Layers=require('./visual-layers');
 const Captions=require('./captions');
 const VERSION=6;
+function displayName(value){return typeof value==='string'?value.replace(/[\x00-\x1f\x7f]/g,' ').trim().slice(0,64):'';}
 function backupLegacy(file){
   if(!fs.existsSync(file))return;
   const raw=JSON.parse(fs.readFileSync(file,'utf8').replace(/^\uFEFF/,''));
@@ -26,7 +27,7 @@ function state(raw,assets){
   const layers=Layers.validate(raw.layers||[],assets);
   const proxyPreferences={};for(const [id,p]of Object.entries(raw.proxyPreferences||{})){if(assets[id]?.kind==='video')proxyPreferences[id]={enabled:p?.enabled===true,size:p?.size===720?720:540};}
   const captions=Captions.normalize(raw.captions);
-  return {captions,selectedCaption:captions.cues.some(c=>c.id===raw.selectedCaption)?raw.selectedCaption:null,proxyPreferences,layers,selectedLayer:layers.some(c=>c.id===raw.selectedLayer)?raw.selectedLayer:null,audioTracks,mainTrack,markers,titlesLocked:raw.titlesLocked===true,snapEnabled:raw.snapEnabled!==false,meta,sourceMeta:raw.sourceMeta?format(raw.sourceMeta):meta,canvasMode:['source','16:9','9:16','1:1'].includes(raw.canvasMode)?raw.canvasMode:'source',clips,titles,cursor:Math.max(0,Math.min(TL.duration(clips),Number(raw.cursor)||0)),selectedClip:Number.isInteger(raw.selectedClip)?Math.max(-1,Math.min(clips.length-1,raw.selectedClip)):-1,selectedTitle:titles.some(t=>t.id===raw.selectedTitle)?raw.selectedTitle:titles[0]?.id||null,selectionKind:['title','audio','layer','caption'].includes(raw.selectionKind)?raw.selectionKind:'clip',selectedAudio:audioTracks.some(t=>t.clips.some(c=>c.id===raw.selectedAudio))?raw.selectedAudio:null,zoom:Math.max(1,Math.min(100,Number(raw.zoom)||1)),resolution,quality:raw.quality==='maximum'?'maximum':'high',encoder:['cpu','h264_videotoolbox','h264_nvenc','h264_amf','h264_qsv'].includes(raw.encoder)?raw.encoder:'gpu-auto'};
+  return {displayName:displayName(raw.displayName),captions,selectedCaption:captions.cues.some(c=>c.id===raw.selectedCaption)?raw.selectedCaption:null,proxyPreferences,layers,selectedLayer:layers.some(c=>c.id===raw.selectedLayer)?raw.selectedLayer:null,audioTracks,mainTrack,markers,titlesLocked:raw.titlesLocked===true,snapEnabled:raw.snapEnabled!==false,meta,sourceMeta:raw.sourceMeta?format(raw.sourceMeta):meta,canvasMode:['source','16:9','9:16','1:1'].includes(raw.canvasMode)?raw.canvasMode:'source',clips,titles,cursor:Math.max(0,Math.min(TL.duration(clips),Number(raw.cursor)||0)),selectedClip:Number.isInteger(raw.selectedClip)?Math.max(-1,Math.min(clips.length-1,raw.selectedClip)):-1,selectedTitle:titles.some(t=>t.id===raw.selectedTitle)?raw.selectedTitle:titles[0]?.id||null,selectionKind:['title','audio','layer','caption'].includes(raw.selectionKind)?raw.selectionKind:'clip',selectedAudio:audioTracks.some(t=>t.clips.some(c=>c.id===raw.selectedAudio))?raw.selectedAudio:null,zoom:Math.max(1,Math.min(100,Number(raw.zoom)||1)),resolution,quality:raw.quality==='maximum'?'maximum':'high',encoder:['cpu','h264_videotoolbox','h264_nvenc','h264_amf','h264_qsv'].includes(raw.encoder)?raw.encoder:'gpu-auto'};
 }
 function writeProject(file,raw,registry){
   const ids=AudioTracks.assetIds(raw),assets={};
@@ -46,4 +47,4 @@ function readProject(file){
   return {raw,sources};
 }
 function inside(root,file){const relative=path.relative(path.resolve(root),path.resolve(file));return !!relative&&!relative.startsWith('..'+path.sep)&&relative!=='..'&&!path.isAbsolute(relative);}
-module.exports={assetIds:AudioTracks.assetIds,VERSION,backupLegacy,state,format,frameRate,outputSize,writeProject,readProject,inside};
+module.exports={assetIds:AudioTracks.assetIds,VERSION,displayName,backupLegacy,state,format,frameRate,outputSize,writeProject,readProject,inside};

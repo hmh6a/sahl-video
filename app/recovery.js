@@ -29,7 +29,7 @@ class RecoveryStore{
     }
     return [...latest.values()].filter(x=>x.raw.recovery.id!==this.id&&!this.isAlive(x.raw.recovery.ownerPid)).sort((a,b)=>b.raw.recovery.savedAt-a.raw.recovery.savedAt);
   }
-  list(){return this.entries().map(({raw})=>({id:raw.recovery.id,savedAt:raw.recovery.savedAt,name:raw.recovery.projectPath?path.basename(raw.recovery.projectPath):'مشروع غير مسمّى',clips:raw.clips?.length||0,texts:raw.titles?.length||0}));}
+  list(){return this.entries().map(({raw})=>({id:raw.recovery.id,savedAt:raw.recovery.savedAt,name:Project.displayName(raw.displayName)||(raw.recovery.projectPath?path.basename(raw.recovery.projectPath):'مشروع غير مسمّى'),clips:raw.clips?.length||0,texts:raw.titles?.length||0}));}
   read(id){this.file(id,0);const entry=this.entries().find(x=>x.raw.recovery.id===id);if(!entry)throw new Error('نسخة الاسترجاع غير متاحة، أو مفتوحة بنافذة ثانية.');return {file:entry.file,...Project.readProject(entry.file)};}
   clear(id=this.id){for(const slot of [0,1]){try{fs.unlinkSync(this.file(id,slot));}catch(e){if(e.code!=='ENOENT')throw e;}}if(id===this.id){this.fingerprint=null;this.generation=0;}}
 }
