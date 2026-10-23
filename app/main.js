@@ -1,4 +1,4 @@
-const {app,BrowserWindow,ipcMain:rootIPC,dialog,shell,protocol}=require('electron');
+const {app,BrowserWindow,WebContentsView,ipcMain:rootIPC,dialog,shell,protocol}=require('electron');
 const path=require('node:path'),fs=require('node:fs'),os=require('node:os');
 const {execFile}=require('node:child_process'),{promisify}=require('node:util');
 const {exportArgs}=require('./export'),timeline=require('./timeline'),Project=require('./project'),{saveBundle}=require('./project-bundle');
@@ -8,7 +8,7 @@ const appPackage=require('../package.json'),appVersion=appPackage.version,{Updat
 const {randomUUID}=require('node:crypto'),{RenderQueue}=require('./render-queue'),{ProjectRouter}=require('./project-router');
 const projects=new Set(),router=new ProjectRouter(rootIPC);
 const queue=new RenderQueue(path.join(app.getPath('userData'),'render-settings.json'),{onChange:value=>broadcast('render-queue',value)});
-let installingUpdate=false,encoderPromise,fontsPromise;
+let installingUpdate=false,encoderPromise,fontsPromise,workspace,projectNumber=0;
 const exec=promisify(execFile),unpack=p=>p.replace('app.asar','app.asar.unpacked'),ffmpeg=unpack(require('ffmpeg-static')),ffprobe=unpack(require('@ffprobe-installer/ffprobe').path);
 function broadcast(channel,value){for(const project of projects)project.message(channel,value);}
 const updates=new Updates(appVersion,{enabled:!!app.isPackaged&&(os.platform()!=='darwin'||appPackage.sahlAutoUpdate===true),disabledReason:!app.isPackaged?'التحديث المباشر متاح في النسخة المثبّتة.':os.platform()==='darwin'&&appPackage.sahlAutoUpdate!==true?'هذه نسخة ماك غير موقّعة. التحديث المباشر يحتاج إصداراً موقّعاً من المطوّر.':undefined,notify:value=>{if(value.phase==='error'&&installingUpdate){installingUpdate=false;for(const p of projects)p.prepareUpdate(false);}broadcast('update-status',value);}});
@@ -18,13 +18,14 @@ async function installUpdate(){
   if([...projects].some(p=>p.blocked()))return updates.emit({phase:'downloaded',version:updates.available?.version,message:'التحديث جاهز. انتظر انتهاء العمليات بكل المشاريع ثم أعد المحاولة.'});
   installingUpdate=true;
   try{
-    for(const p of projects)if(!await p.keepChanges()){installingUpdate=false;return updates.status();}
+    for(const p of projects){workspace.select(p.id,true);if(!await p.keepChanges()){installingUpdate=false;return updates.status();}}
     for(const p of projects){p.capture();p.prepareUpdate(true);}
     const result=updates.install();if(result.phase!=='installing'){installingUpdate=false;for(const p of projects)p.prepareUpdate(false);}return result;
   }catch(e){installingUpdate=false;for(const p of projects)p.prepareUpdate(false);return updates.emit({phase:'error',message:e.message});}
 }
 protocol.registerSchemesAsPrivileged([{scheme:'sahl-media',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true,corsEnabled:true}}]);
-function createProjectWindow(){
+function createProjectTab(){
+const number=++projectNumber;
 const sessionId=randomUUID();
 const library=new MediaLibrary(ffmpeg,ffprobe,{waveformDirectory:path.join(app.getPath('userData'),'waveforms')});
 const {ProxyService}=require('./proxies');
@@ -35,12 +36,16 @@ const {TranscriptionService}=require('./transcription');
 const speech=new TranscriptionService(ffmpeg,unpack(path.join(__dirname,'native','transcription',os.platform()+'-'+os.arch(),os.platform()==='win32'?'whisper-cli.exe':'whisper-cli')),path.join(app.getPath('userData'),'speech-models'),{notify:p=>message('transcription-progress',p)});
 const proxies=new ProxyService(ffmpeg,path.join(app.getPath('userData'),'project-proxies',sessionId),{notify:p=>message('proxy-progress',p)});
 let proxyMaintenance=false;
-let win,active,lastOutput,recovery,autoSaver,projectPath=null,projectState=null,dirty=false,closing=false,checkingClose=false,projectPortable=false,saving=false,projectAbort=null,importingMedia=false,opening=false,exportPreparing=false;
-function message(channel,value){if(win&&!win.isDestroyed())win.webContents.send(channel,value);}
+const win=workspace.win;
+let view,contents,project,active,lastOutput,recovery,autoSaver,projectPath=null,projectState=null,dirty=false,closing=false,checkingClose=false,projectPortable=false,saving=false,projectAbort=null,importingMedia=false,opening=false,exportPreparing=false;
+function message(channel,value){
+  if(project&&(channel==='progress'||channel==='complete')){project.status=channel==='progress'?value:{phase:value.path?'complete':value.error?'error':'stopped'};workspace.refresh();}
+  if(contents&&!contents.isDestroyed())contents.send(channel,value);
+}
 function clearRecovery(){try{recovery?.clear();}catch(e){message('autosave',{phase:'error',message:e.message});}}
 async function cancelExport(){return active?active.cancel():{notRunning:true};}
 
-function title(){win?.setTitle((dirty?'● ':'')+(projectPath?path.basename(projectPath)+' — ':'')+'سهل — Sahl Video '+appVersion);}
+function title(){if(project){project.name=projectPath?path.basename(projectPath):'مشروع '+number;project.dirty=dirty;workspace.refresh();}}
 const mediaFilter=[{name:'Video & images',extensions:['mp4','mov','mkv','webm','m4v','avi','mts','png','jpg','jpeg','webp','bmp','mp3','wav','m4a','aac','flac','ogg','opus']}];
 const audioFilter=[{name:'Audio',extensions:['mp3','wav','m4a','aac','flac','ogg','opus']}];
 async function saveProject(raw,saveAs=false){
@@ -59,20 +64,27 @@ async function saveProject(raw,saveAs=false){
 }
 async function keepChanges(){if(!dirty||!projectState)return true;const choice=await dialog.showMessageBox(win,{type:'question',buttons:['احفظ التغييرات','تجاهل التغييرات','رجوع'],defaultId:0,cancelId:2,message:'عندك تغييرات بالمشروع ما محفوظة.',detail:'احفظها حتى ترجع تكمل القصات والنصوص بعدين.'});if(choice.response===2)return false;if(choice.response===1)return true;try{return !(await saveProject(projectState)).canceled;}catch(e){await dialog.showMessageBox(win,{type:'error',message:'تعذّر حفظ المشروع',detail:e.message});return false;}}
   recovery=new RecoveryStore(app.getPath('userData'));autoSaver=new AutoSaver(recovery,()=>({raw:projectState,assets:library.assets,dirty,blocked:saving||importingMedia||opening,projectPath,portable:projectPortable}),value=>message('autosave',value),{setIntervalFn:setInterval,clearIntervalFn:clearInterval});
-  capabilities();win=new BrowserWindow({width:1500,height:960,minWidth:1120,minHeight:740,backgroundColor:'#14131a',icon:path.join(__dirname,'assets/icon.ico'),autoHideMenuBar:true,title:'سهل — Sahl Video '+appVersion,webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,partition:projects.size?sessionId:undefined}});
-  win.webContents.session.protocol.handle('sahl-media',request=>{const u=new URL(request.url),a=u.hostname==='asset'?library.assets[u.pathname.slice(1)]:null;const file=a?.path||(u.hostname==='proxy'?proxies.resolve(u.pathname.slice(1)):null);return file?mediaResponse(file,request):new Response('Not found',{status:404});});
-  const ipcMain=router.forWindow(win);
-  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());win.loadFile(path.join(__dirname,'index.html'));
-  win.webContents.on('render-process-gone',()=>autoSaver.capture());
-  win.on('close',async e=>{if(closing)return;e.preventDefault();if(checkingClose||saving||exportPreparing||installingUpdate)return;checkingClose=true;
-    try{if(active){const choice=await dialog.showMessageBox(win,{type:'question',buttons:['استمر بالتصدير','إلغاء التصدير وإغلاق'],defaultId:0,cancelId:0,message:'التصدير مستمر. تريد تلغيه وتغلق البرنامج؟'});if(choice.response===0)return;}
-      if(speech.busy){const choice=await dialog.showMessageBox(win,{type:'question',buttons:['انتظر','إلغاء التفريغ وإغلاق'],defaultId:0,cancelId:0,message:'تجهيز التفريغ مستمر.'});if(choice.response===0)return;await speech.cancelAndWait();}if(!await keepChanges())return;if(active){const stopped=await cancelExport();if(stopped.error){await dialog.showMessageBox(win,{type:'error',message:stopped.error});return;}}clearRecovery();autoSaver.stop();closing=true;win.close();
+  capabilities();view=new WebContentsView({webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,partition:number===1?undefined:sessionId}});
+  contents=view.webContents;
+  contents.session.protocol.handle('sahl-media',request=>{const u=new URL(request.url),a=u.hostname==='asset'?library.assets[u.pathname.slice(1)]:null;const file=a?.path||(u.hostname==='proxy'?proxies.resolve(u.pathname.slice(1)):null);return file?mediaResponse(file,request):new Response('Not found',{status:404});});
+  const ipcMain=router.forContents(contents);
+  contents.setWindowOpenHandler(()=>({action:'deny'}));contents.on('will-navigate',e=>e.preventDefault());
+  contents.on('render-process-gone',()=>autoSaver.capture());
+  async function confirmClose(){
+    if(closing)return true;if(checkingClose||saving||importingMedia||opening||proxyMaintenance||exportPreparing||installingUpdate)return false;checkingClose=true;
+    try{if(active){const choice=await dialog.showMessageBox(win,{type:'question',buttons:['استمر بالتصدير','إلغاء التصدير وإغلاق التاب'],defaultId:0,cancelId:0,message:'هذا المشروع قيد التصدير أو بالانتظار.',detail:'التنقّل بين التابات يبقي التصدير شغّال. إغلاق التاب يلغي تصديره.'});if(choice.response===0)return false;}
+      if(speech.busy){const choice=await dialog.showMessageBox(win,{type:'question',buttons:['انتظر','إلغاء التفريغ وإغلاق'],defaultId:0,cancelId:0,message:'تجهيز التفريغ مستمر.'});if(choice.response===0)return false;await speech.cancelAndWait();}if(!await keepChanges())return false;if(active){const stopped=await cancelExport();if(stopped.error){await dialog.showMessageBox(win,{type:'error',message:stopped.error});return false;}}return true;
     }finally{checkingClose=false;}
-  });
-  const project={message,keepChanges,capture:()=>autoSaver.capture(),prepareUpdate:value=>{closing=value;},blocked:()=>!!(active||exportPreparing||speech.busy||saving||importingMedia||opening||checkingClose),sources:()=>[...Object.values(library.assets).map(a=>a.path),projectPath].filter(Boolean),speech};
-  projects.add(project);
-  win.on('closed',()=>{projects.delete(project);autoSaver.stop();speech.cancel();library.waveforms.cancel();proxies.reset().then(()=>fs.promises.rm(proxies.directory,{recursive:true,force:true})).catch(()=>{});});
-  ipcMain.handle('new-project-window',()=>{if(installingUpdate)return {error:'انتظر انتهاء التحديث.'};createProjectWindow();return {opened:true};});
+  }
+  let disposed=false;
+  function dispose(){
+    if(disposed)return;disposed=true;if(!installingUpdate)clearRecovery();autoSaver.stop();projects.delete(project);speech.cancel();library.waveforms.cancel();
+    proxies.reset().then(()=>fs.promises.rm(proxies.directory,{recursive:true,force:true})).catch(()=>{});
+    if(!contents.isDestroyed()){contents.session.protocol.unhandle('sahl-media');contents.close({waitForBeforeUnload:false});}
+  }
+  project={id:sessionId,view,name:'مشروع '+number,dirty:false,status:null,message,confirmClose,dispose,keepChanges,capture:()=>autoSaver.capture(),prepareUpdate:value=>{closing=value;workspace.closing=value;},blocked:()=>!!(active||exportPreparing||speech.busy||saving||importingMedia||opening||checkingClose),sources:()=>[...Object.values(library.assets).map(a=>a.path),projectPath].filter(Boolean),speech};
+  projects.add(project);workspace.add(project);contents.loadFile(path.join(__dirname,'index.html'));
+  ipcMain.handle('new-project-tab',()=>workspace.create());
   ipcMain.handle('render-settings',()=>queue.settings());
   ipcMain.handle('render-queue',()=>queue.snapshot());
   ipcMain.handle('cancel-queued-export',(_,id)=>queue.cancelExport(id));
@@ -171,10 +183,10 @@ ipcMain.handle('cancel-export',cancelExport);ipcMain.handle('show-output',()=>{i
 ipcMain.handle('list-templates',()=>new TemplateStore(app.getPath('userData')).list());
 ipcMain.handle('save-layout',(_,name,titles)=>new TemplateStore(app.getPath('userData')).save(name,titles));
 
-return win;
+return {opened:true,id:sessionId};
 }
 if(app.requestSingleInstanceLock()){
-  app.on('second-instance',()=>{if(!installingUpdate&&app.isReady())createProjectWindow();});
-  app.whenReady().then(()=>createProjectWindow());
+  app.on('second-instance',()=>{if(workspace&&!installingUpdate){workspace.create();if(workspace.win.isMinimized())workspace.win.restore();workspace.win.show();workspace.win.focus();}});
+  app.whenReady().then(()=>{const {ProjectWorkspace}=require('./project-workspace');workspace=new ProjectWorkspace({BrowserWindow,ipcMain:rootIPC,directory:__dirname,version:appVersion,onNew:createProjectTab,canChange:()=>!installingUpdate});workspace.create();});
   app.on('window-all-closed',()=>{updates.cancel();app.quit();});
 }else app.quit();

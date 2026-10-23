@@ -7,6 +7,14 @@ test('IPC stays bound to its project and closing a destroyed webContents safely 
  let first=0,second=0;one.on('edit',()=>first++);two.on('edit',()=>second++);
  assert.equal(handlers.get('read')({sender:{id:1}}),1);assert.equal(handlers.get('read')({sender:{id:2}}),2);
  events.get('edit')({sender:{id:2}});assert.equal(first,0);assert.equal(second,1);
- destroyed=true;assert.doesNotThrow(()=>a.emit('closed'));assert.throws(()=>handlers.get('read')({sender:{id:1}}),/غير متاحة/);
+ destroyed=true;assert.doesNotThrow(()=>a.emit('closed'));assert.throws(()=>handlers.get('read')({sender:{id:1}}),/غير متاح/);
  assert.equal(handlers.get('read')({sender:{id:2}}),2);assert.throws(()=>handlers.get('read')({sender:{id:99}}));
+});
+
+test('destroying a tab cleans its routes while the host and other tabs stay alive',()=>{
+ const handlers=new Map(),router=new ProjectRouter({handle:(key,fn)=>handlers.set(key,fn),on(){}});
+ const a=new EventEmitter(),b=new EventEmitter();a.id=1;b.id=2;
+ router.forContents(a).handle('read',()=>1);router.forContents(b).handle('read',()=>2);
+ a.emit('destroyed');assert.throws(()=>handlers.get('read')({sender:{id:1}}),/غير متاح/);
+ assert.equal(handlers.get('read')({sender:{id:2}}),2);
 });

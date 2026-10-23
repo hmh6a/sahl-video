@@ -1,0 +1,27 @@
+const list=document.getElementById('project-tabs'),rows=new Map();let active;
+async function action(fn){try{const result=await fn();document.getElementById('workspace-error').textContent=result?.error||'';}catch(e){document.getElementById('workspace-error').textContent=e.message;}}
+function render(state){
+  const ids=new Set(state.tabs.map(tab=>tab.id));for(const [id,row]of rows)if(!ids.has(id)){row.remove();rows.delete(id);}
+  for(const tab of state.tabs){
+    let row=rows.get(tab.id);
+    if(!row){
+      row=document.createElement('div');row.className='project-tab';row.dataset.tabId=tab.id;
+      row.innerHTML='<button class="tab-select" role="tab"><span class="tab-dirty" aria-label="تغييرات غير محفوظة">•</span><span class="tab-name" dir="auto"></span><span class="tab-status"></span></button><button class="tab-close" title="إغلاق التاب (Ctrl+W)">×</button>';
+      row.querySelector('.tab-select').onclick=()=>action(()=>workspace.select(tab.id));row.querySelector('.tab-close').onclick=()=>action(()=>workspace.close(tab.id));list.append(row);rows.set(tab.id,row);
+    }
+    const selected=state.active===tab.id,select=row.querySelector('.tab-select');row.classList.toggle('selected',selected);
+    select.setAttribute('aria-selected',String(selected));select.tabIndex=selected?0:-1;select.disabled=state.busy;
+    row.querySelector('.tab-close').disabled=state.busy;row.querySelector('.tab-close').setAttribute('aria-label','إغلاق '+tab.name);
+    row.querySelector('.tab-name').textContent=tab.name;row.querySelector('.tab-dirty').hidden=!tab.dirty;
+    const status=tab.status||{},label=status.phase==='queued'?'بالانتظار':['rendering','finalizing'].includes(status.phase)?Math.floor(status.percent||0)+'%':status.phase==='complete'?'اكتمل':status.phase==='error'?'تعذّر التصدير':'';
+    row.querySelector('.tab-status').textContent=label;row.querySelector('.tab-status').hidden=!label;select.title=tab.name+(tab.dirty?' — تغييرات غير محفوظة':'')+(label?' — '+label:'');
+  }
+  if(active!==state.active)rows.get(state.active)?.scrollIntoView({block:'nearest',inline:'nearest'});active=state.active;
+  document.getElementById('new-tab').disabled=state.busy;
+}
+list.addEventListener('keydown',e=>{
+  if(!['ArrowRight','ArrowLeft','Home','End'].includes(e.key)||!e.target.matches('.tab-select'))return;
+  const buttons=[...list.querySelectorAll('.tab-select')],index=buttons.indexOf(e.target),next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowLeft'?1:-1)+buttons.length)%buttons.length;
+  e.preventDefault();buttons[next].click();buttons[next].focus();
+});
+document.getElementById('new-tab').onclick=()=>action(()=>workspace.create());workspace.onState(render);workspace.state().then(render);

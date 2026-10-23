@@ -1,8 +1,9 @@
-async function newProjectWindow(){
- try{const result=await window.sahl.newProjectWindow();if(result?.error)status(result.error,true);}
- catch(e){status('تعذّر فتح نافذة المشروع: '+e.message,true);}
+async function newProjectTab(){
+ try{const result=await window.sahl.newProjectTab();if(result?.error)status(result.error,true);}
+ catch(e){status('تعذّر فتح تاب المشروع: '+e.message,true);}
 }
-for(const id of ['new-project-window','render-new-project'])$(id).onclick=newProjectWindow;
+for(const id of ['new-project-tab','render-new-project'])$(id).onclick=newProjectTab;
+window.sahl.onProjectActive?.(active=>{if(!active)pause();});
 async function openRenderSettings(){
  $('render-settings-message').textContent='';
  try{
