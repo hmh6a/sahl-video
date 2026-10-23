@@ -1,7 +1,9 @@
-function autosavePending(){if(!$('autosave-status').classList.contains('error'))$('autosave-status').textContent='حفظ تلقائي كل دقيقة · تعديلات جديدة';}
+function autosavePending(){if(!$('autosave-status').classList.contains('error')&&$('autosave-status').dataset.phase!=='copying')$('autosave-status').textContent='حفظ تلقائي كل دقيقة · تعديلات جديدة';}
 function autosaveStatus(value){const label=$('autosave-status');label.classList.toggle('error',value.phase==='error');
+  label.dataset.phase=value.phase;
+  if(value.phase==='copying'){label.textContent='نسخ وسائط الاسترجاع · '+value.index+'/'+value.count+' · '+value.percent+'%';label.title=value.name+' — تُنسخ الملفات الجديدة أو المتغيّرة فقط. تقدر تكمل الشغل.';return;}
   if(value.phase==='error'){label.textContent='تعذّر الحفظ التلقائي';label.title=value.message+' — سيحاول مجدداً خلال دقيقة. تقدر تحفظ يدوياً.';return;}
-  label.title='نسخة استرجاع محلية كل دقيقة. استخدم حفظ مع الملفات لجمع الوسائط ونقل المشروع.';
+  label.title='التعديلات ونسخ الوسائط محفوظة محلياً بعد اكتمال الحفظ التلقائي. الملفات غير المتغيّرة ما تننسخ مرة ثانية. استخدم حفظ مع الملفات لنقل المشروع لجهاز آخر.';
   label.textContent=value.savedAt?(value.phase==='manual'?'المشروع محفوظ · ':'حُفظ تلقائياً · ')+new Date(value.savedAt).toLocaleTimeString('ar-IQ-u-nu-latn',{hour:'2-digit',minute:'2-digit'}):'حفظ تلقائي كل دقيقة';
 }
 window.sahl.onAutosave?.(autosaveStatus);

@@ -20,7 +20,7 @@ async function installUpdate(){
   installingUpdate=true;
   try{
     for(const p of projects){workspace.select(p.id,true);if(!await p.keepChanges()){installingUpdate=false;return updates.status();}}
-    for(const p of projects){p.capture();p.prepareUpdate(true);}
+    for(const p of projects){await p.capture();p.prepareUpdate(true);}
     const result=updates.install();if(result.phase!=='installing'){installingUpdate=false;for(const p of projects)p.prepareUpdate(false);}return result;
   }catch(e){installingUpdate=false;for(const p of projects)p.prepareUpdate(false);return updates.emit({phase:'error',message:e.message});}
 }
@@ -53,6 +53,7 @@ async function saveProject(raw,saveAs=false){
   raw={...raw,displayName};
   if(saving||importingMedia)throw new Error('انتظر انتهاء الحفظ أو استيراد الملفات.');saving=true;
   try{
+    await autoSaver.pause();
     let file=saveAs?null:projectPath;
     if(!file){const defaultPath=projectPath?path.join(projectPortable?path.dirname(path.dirname(projectPath)):path.dirname(projectPath),path.parse(projectPath).name+'-نسخة.sahl'):'مشروعي.sahl';
       const chosen=await dialog.showSaveDialog(win,{title:'سمّ المشروع — ينحفظ مع ملفاته بمجلد بنفس الاسم',defaultPath,filters:[{name:'Sahl project folder',extensions:['sahl']}]});if(chosen.canceled)return {canceled:true};file=chosen.filePath;if(path.extname(file).toLowerCase()!=='.sahl')file+='.sahl';}
@@ -117,10 +118,11 @@ function recoveryEntry(id){return resolveRecoveryMedia(recovery.read(id),recents
 ipcMain.handle('list-recovery',()=>recovery.list().map(item=>{try{return {...item,missingCount:recoveryEntry(item.id).missingFiles.length};}catch{return item;}}));
 ipcMain.handle('save-project',async(_,raw,saveAs)=>{try{if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};return await saveProject(raw,saveAs);}catch(e){return {error:e.message};}});
 async function loadProject(file,recoveryId=null,resolvedRecovery=null){
+  await autoSaver.pause();
   const {raw,sources}=recoveryId?(resolvedRecovery||recoveryEntry(recoveryId)):Project.readProject(file),assets={};let relinked=false;
   for(const source of sources){let location=source.resolved;if(!location){const relink=await dialog.showOpenDialog(win,{title:'حدد الملف المفقود: '+path.basename(source.path||source.relativePath),properties:['openFile'],filters:mediaFilter});if(relink.canceled)return {canceled:true};location=relink.filePaths[0];relinked=true;}const a=await library.inspect(location,source.id);if(a.kind!==source.kind)throw new Error('نوع الملف البديل مختلف عن الملف الأصلي.');a.name=source.name||path.basename(location);assets[source.id]=a;}
   const clean=Project.state(raw,assets),origin=recoveryId?raw.recovery.projectPath:file,nextPath=origin&&fs.existsSync(origin)?origin:null,nextPortable=recoveryId?raw.recovery.portable===true:raw.portable===true,nextState={...clean,assetIds:Object.keys(assets)};
-  if(recoveryId){recovery.save(nextState,assets,{projectPath:nextPath,portable:nextPortable,force:true});try{recovery.clear(recoveryId);}catch{/* Keep the old recovery if Windows has it locked. */}}
+  if(recoveryId){await recovery.saveWithMedia(nextState,assets,{projectPath:nextPath,portable:nextPortable,force:true,onProgress:value=>message('autosave',value)});try{recovery.clear(recoveryId);}catch{/* Keep the old recovery if Windows has it locked. */}}
   else clearRecovery();
   await proxies.reset();library.replace(assets);projectPath=nextPath;projectPortable=nextPortable;projectState=nextState;displayName=clean.displayName;dirty=relinked||!!recoveryId;title();
   message('autosave',{phase:recoveryId?'saved':'ready',...(recoveryId?{savedAt:Date.now()}: {})});
