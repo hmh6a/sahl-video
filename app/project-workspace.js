@@ -49,7 +49,7 @@ class ProjectWorkspace{
     this.select(tab.id);return tab;
   }
   select(id,force=false,focusEditor=true){
-    if(this.busy&&!force)return {canceled:true};const target=this.tabs.find(tab=>tab.id===id);if(!target)return {canceled:true};
+    if((this.busy||!this.canChange())&&!force)return {canceled:true};const target=this.tabs.find(tab=>tab.id===id);if(!target)return {canceled:true};
     const previous=this.active;this.active=id;
     for(const tab of this.tabs){tab.view.setVisible(tab===target);if(previous!==id)tab.message('project-active',tab===target);}
     if(focusEditor&&!target.view.webContents.isDestroyed())target.view.webContents.focus();this.refresh();return {selected:true};

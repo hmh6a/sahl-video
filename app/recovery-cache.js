@@ -33,6 +33,7 @@ async function ensureCopy(source,destination,stat,signal,notify){
   try{await waitFor(job.promise,signal);}finally{job.listeners.delete(notify);if(!job.done&&!job.listeners.size)job.controller.abort();}
 }
 class RecoveryCache{
+  static async drain(){await Promise.allSettled([...copies.values()].map(job=>job.promise));}
   constructor(directory){this.directory=path.join(directory,'media');this.known=new Map();try{this.cleanInterruptedCopies();}catch{/* Autosave reports access errors without blocking app startup. */}}
   cleanInterruptedCopies(){
     if(!fs.existsSync(this.directory)||fs.lstatSync(this.directory).isSymbolicLink())return;

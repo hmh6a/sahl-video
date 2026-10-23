@@ -1,5 +1,6 @@
 const {contextBridge,ipcRenderer,webUtils}=require('electron');
 contextBridge.exposeInMainWorld('sahl',{
+ recoverySettings:()=>ipcRenderer.invoke('recovery-settings'),chooseRecoveryLocation:()=>ipcRenderer.invoke('choose-recovery-location'),onRecoveryLocation:fn=>ipcRenderer.on('recovery-location',(_,value)=>fn(value)),
  renderQueue:()=>ipcRenderer.invoke('render-queue'),cancelQueuedExport:id=>ipcRenderer.invoke('cancel-queued-export',id),moveQueuedExport:(id,direction)=>ipcRenderer.invoke('move-queued-export',id,direction),onRenderQueue:fn=>ipcRenderer.on('render-queue',(_,value)=>fn(value)),
  newProjectTab:()=>ipcRenderer.invoke('new-project-tab'),onProjectActive:fn=>ipcRenderer.on('project-active',(_,active)=>fn(active)),renderSettings:()=>ipcRenderer.invoke('render-settings'),setRenderLimit:limit=>ipcRenderer.invoke('set-render-limit',limit),onRenderSettings:fn=>ipcRenderer.on('render-settings',(_,value)=>fn(value)),
  updateStatus:()=>ipcRenderer.invoke('update-status'),checkUpdates:()=>ipcRenderer.invoke('check-updates'),downloadUpdate:()=>ipcRenderer.invoke('download-update'),cancelUpdate:()=>ipcRenderer.invoke('cancel-update'),installUpdate:()=>ipcRenderer.invoke('install-update'),onUpdate:fn=>ipcRenderer.on('update-status',(_,value)=>fn(value)),

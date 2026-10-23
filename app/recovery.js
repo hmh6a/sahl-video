@@ -4,7 +4,13 @@ const {RecoveryCache}=require('./recovery-cache');
 const INTERVAL_MS=60000;
 function alive(pid){if(!Number.isInteger(pid)||pid<1)return false;try{process.kill(pid,0);return true;}catch(e){return e.code==='EPERM';}}
 class RecoveryStore{
-  constructor(directory,{id=crypto.randomUUID(),ownerPid=process.pid,isAlive=alive,now=Date.now}={}){this.directory=path.join(directory,'recovery');this.id=id;this.ownerPid=ownerPid;this.isAlive=isAlive;this.now=now;this.generation=0;this.fingerprint=null;this.cache=new RecoveryCache(this.directory);this.pending=null;this.controller=null;}
+  constructor(directory,{id=crypto.randomUUID(),ownerPid=process.pid,isAlive=alive,now=Date.now,recoveryDirectory}={}){this.directory=recoveryDirectory||path.join(directory,'recovery');this.id=id;this.ownerPid=ownerPid;this.isAlive=isAlive;this.now=now;this.generation=0;this.fingerprint=null;this.cache=new RecoveryCache(this.directory);this.pending=null;this.controller=null;}
+  relocate(directory){
+    if(this.pending)throw Error('انتظر انتهاء الحفظ التلقائي.');
+    const {mapPath}=require('./recovery-location'),old=this.directory,known=this.cache.known;
+    this.directory=directory;this.cache=new RecoveryCache(directory);this.fingerprint=null;
+    for(const [key,value]of known){const index=key.indexOf(':');this.cache.known.set(key.slice(0,index+1)+mapPath(key.slice(index+1),old,directory),{...value,path:mapPath(value.path,old,directory)});}
+  }
   file(id,slot){if(!/^[a-zA-Z0-9-]{1,80}$/.test(id))throw new Error('نسخة الاسترجاع غير صالحة.');return path.join(this.directory,id+'.'+slot+'.sahl');}
   save(raw,registry,{projectPath=null,portable=false,force=false,backups=null}={}){
     const ids=Project.assetIds(raw),assets={};

@@ -4,25 +4,43 @@ const {execFile}=require('node:child_process'),{promisify}=require('node:util');
 const {exportArgs}=require('./export'),timeline=require('./timeline'),Project=require('./project'),{saveBundle}=require('./project-bundle');
 const {detectEncoders}=require('./encoding'),{MediaLibrary}=require('./library'),{mediaResponse}=require('./media'),{TemplateStore}=require('./template-store');
 const {RecoveryStore,AutoSaver}=require('./recovery');
+const {RecoveryLocation,mapPath}=require('./recovery-location');
+const recoveryLocation=new RecoveryLocation(app.getPath('userData'));
 const {resolveRecoveryMedia}=require('./recovery-media');
 const appPackage=require('../package.json'),appVersion=appPackage.version,{Updates}=require('./updates');
 const {randomUUID}=require('node:crypto'),{RenderQueue}=require('./render-queue'),{ProjectRouter}=require('./project-router');
 const projects=new Set(),router=new ProjectRouter(rootIPC);
 const queue=new RenderQueue(path.join(app.getPath('userData'),'render-settings.json'),{onChange:value=>broadcast('render-queue',value)});
-let installingUpdate=false,encoderPromise,fontsPromise,workspace,projectNumber=0;
+let installingUpdate=false,changingRecovery=false,encoderPromise,fontsPromise,workspace,projectNumber=0;
 const exec=promisify(execFile),unpack=p=>p.replace('app.asar','app.asar.unpacked'),ffmpeg=unpack(require('ffmpeg-static')),ffprobe=unpack(require('@ffprobe-installer/ffprobe').path);
 function broadcast(channel,value){for(const project of projects)project.message(channel,value);}
 const updates=new Updates(appVersion,{enabled:!!app.isPackaged&&(os.platform()!=='darwin'||appPackage.sahlAutoUpdate===true),disabledReason:!app.isPackaged?'التحديث المباشر متاح في النسخة المثبّتة.':os.platform()==='darwin'&&appPackage.sahlAutoUpdate!==true?'هذه نسخة ماك غير موقّعة. التحديث المباشر يحتاج إصداراً موقّعاً من المطوّر.':undefined,notify:value=>{if(value.phase==='error'&&installingUpdate){installingUpdate=false;for(const p of projects)p.prepareUpdate(false);}broadcast('update-status',value);}});
 function capabilities(){return encoderPromise ||=detectEncoders(ffmpeg);}
 async function installUpdate(){
-  if(!updates.downloaded||installingUpdate)return updates.status();
-  if([...projects].some(p=>p.blocked()))return updates.emit({phase:'downloaded',version:updates.available?.version,message:'التحديث جاهز. انتظر انتهاء العمليات بكل المشاريع ثم أعد المحاولة.'});
+  if(!updates.downloaded||installingUpdate||changingRecovery)return updates.status();
+  if(changingRecovery||[...projects].some(p=>p.blocked()))return updates.emit({phase:'downloaded',version:updates.available?.version,message:'التحديث جاهز. انتظر انتهاء العمليات بكل المشاريع ثم أعد المحاولة.'});
   installingUpdate=true;
   try{
     for(const p of projects){workspace.select(p.id,true);if(!await p.keepChanges()){installingUpdate=false;return updates.status();}}
     for(const p of projects){await p.capture();p.prepareUpdate(true);}
     const result=updates.install();if(result.phase!=='installing'){installingUpdate=false;for(const p of projects)p.prepareUpdate(false);}return result;
   }catch(e){installingUpdate=false;for(const p of projects)p.prepareUpdate(false);return updates.emit({phase:'error',message:e.message});}
+}
+async function chooseRecoveryLocation(){
+  if(changingRecovery||installingUpdate||workspace.busy||[...projects].some(p=>p.blocked()))return {error:'انتظر انتهاء الحفظ والتصدير والعمليات بكل المشاريع قبل نقل الحفظ التلقائي.'};
+  changingRecovery=true;let moved=false;
+  try{
+    const chosen=await dialog.showOpenDialog(workspace.win,{title:'اختار قرصاً أو مجلداً للحفظ التلقائي ونسخ الوسائط',properties:['openDirectory','createDirectory']});
+    if(chosen.canceled||!chosen.filePaths?.[0])return {canceled:true};
+    broadcast('recovery-location',{...recoveryLocation.settings(),phase:'moving',percent:0});
+    for(const p of projects)await p.pauseRecovery();
+    await require('./recovery-cache').RecoveryCache.drain();
+    const result=await recoveryLocation.move(chosen.filePaths[0],{onProgress:value=>broadcast('recovery-location',value)});
+    for(const p of projects)p.relocateRecovery(result.oldDirectory,result.directory);moved=true;
+    const cleanup=await recoveryLocation.cleanup().catch(()=>({cleanupPending:true}));
+    const settings={...recoveryLocation.settings(),...cleanup,phase:'ready'};broadcast('recovery-location',settings);return settings;
+  }catch(e){const result={...recoveryLocation.settings(),phase:'error',error:'تعذّر نقل الحفظ التلقائي: '+e.message};broadcast('recovery-location',result);return result;}
+  finally{changingRecovery=false;if(moved)for(const p of projects)void p.capture();}
 }
 protocol.registerSchemesAsPrivileged([{scheme:'sahl-media',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true,corsEnabled:true}}]);
 function createProjectTab(){
@@ -66,7 +84,7 @@ async function saveProject(raw,saveAs=false){
   finally{projectAbort=null;saving=false;message('project-copy',{phase:'finished'});}
 }
 async function keepChanges(){if(!dirty||!projectState)return true;const choice=await dialog.showMessageBox(win,{type:'question',buttons:['احفظ التغييرات','تجاهل التغييرات','رجوع'],defaultId:0,cancelId:2,message:'عندك تغييرات بالمشروع ما محفوظة.',detail:'احفظها حتى ترجع تكمل القصات والنصوص بعدين.'});if(choice.response===2)return false;if(choice.response===1)return true;try{return !(await saveProject(projectState)).canceled;}catch(e){await dialog.showMessageBox(win,{type:'error',message:'تعذّر حفظ المشروع',detail:e.message});return false;}}
-  recovery=new RecoveryStore(app.getPath('userData'));autoSaver=new AutoSaver(recovery,()=>({raw:projectState,assets:library.assets,dirty,blocked:saving||importingMedia||opening,projectPath,portable:projectPortable}),value=>message('autosave',value),{setIntervalFn:setInterval,clearIntervalFn:clearInterval});
+  recovery=new RecoveryStore(app.getPath('userData'),{recoveryDirectory:recoveryLocation.directory});autoSaver=new AutoSaver(recovery,()=>({raw:projectState,assets:library.assets,dirty,blocked:saving||importingMedia||opening||changingRecovery,projectPath,portable:projectPortable}),value=>message('autosave',value),{setIntervalFn:setInterval,clearIntervalFn:clearInterval});
   capabilities();view=new WebContentsView({webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false,partition:number===1?undefined:sessionId}});
   contents=view.webContents;
   contents.session.protocol.handle('sahl-media',request=>{const u=new URL(request.url),a=u.hostname==='asset'?library.assets[u.pathname.slice(1)]:null;const file=a?.path||(u.hostname==='proxy'?proxies.resolve(u.pathname.slice(1)):null);return file?mediaResponse(file,request):new Response('Not found',{status:404});});
@@ -74,7 +92,7 @@ async function keepChanges(){if(!dirty||!projectState)return true;const choice=a
   contents.setWindowOpenHandler(()=>({action:'deny'}));contents.on('will-navigate',e=>e.preventDefault());
   contents.on('render-process-gone',()=>autoSaver.capture());
   async function confirmClose(){
-    if(closing)return true;if(checkingClose||saving||importingMedia||opening||proxyMaintenance||exportPreparing||installingUpdate)return false;checkingClose=true;
+    if(closing)return true;if(checkingClose||saving||importingMedia||opening||proxyMaintenance||exportPreparing||installingUpdate||changingRecovery)return false;checkingClose=true;
     try{if(active){const choice=await dialog.showMessageBox(win,{type:'question',buttons:['استمر بالتصدير','إلغاء التصدير وإغلاق التاب'],defaultId:0,cancelId:0,message:'هذا المشروع قيد التصدير أو بالانتظار.',detail:'التنقّل بين التابات يبقي التصدير شغّال. إغلاق التاب يلغي تصديره.'});if(choice.response===0)return false;}
       if(speech.busy){const choice=await dialog.showMessageBox(win,{type:'question',buttons:['انتظر','إلغاء التفريغ وإغلاق'],defaultId:0,cancelId:0,message:'تجهيز التفريغ مستمر.'});if(choice.response===0)return false;await speech.cancelAndWait();}if(!await keepChanges())return false;if(active){const stopped=await cancelExport();if(stopped.error){await dialog.showMessageBox(win,{type:'error',message:stopped.error});return false;}}return true;
     }finally{checkingClose=false;}
@@ -85,8 +103,12 @@ async function keepChanges(){if(!dirty||!projectState)return true;const choice=a
     proxies.reset().then(()=>fs.promises.rm(proxies.directory,{recursive:true,force:true})).catch(()=>{});
     if(!contents.isDestroyed()){contents.session.protocol.unhandle('sahl-media');contents.close({waitForBeforeUnload:false});}
   }
-  project={id:sessionId,view,name:null,rename:name=>{if(saving||opening||installingUpdate)return {error:'انتظر انتهاء العملية الحالية.'};displayName=name;projectState={...projectState,displayName};dirty=true;title();message('project-renamed',{displayName});return {renamed:true};},dirty:false,status:null,message,confirmClose,dispose,keepChanges,capture:()=>autoSaver.capture(),prepareUpdate:value=>{closing=value;workspace.closing=value;},blocked:()=>!!(active||exportPreparing||speech.busy||saving||importingMedia||opening||checkingClose),sources:()=>[...Object.values(library.assets).map(a=>a.path),projectPath].filter(Boolean),speech};
+  project={id:sessionId,view,name:null,rename:name=>{if(saving||opening||installingUpdate||changingRecovery)return {error:'انتظر انتهاء العملية الحالية.'};displayName=name;projectState={...projectState,displayName};dirty=true;title();message('project-renamed',{displayName});return {renamed:true};},dirty:false,status:null,message,confirmClose,dispose,keepChanges,capture:()=>autoSaver.capture(),prepareUpdate:value=>{closing=value;workspace.closing=value;},blocked:()=>!!(active||exportPreparing||speech.busy||saving||importingMedia||opening||checkingClose||proxyMaintenance||changingRecovery),sources:()=>[...Object.values(library.assets).map(a=>a.path),projectPath].filter(Boolean),speech};
   projects.add(project);workspace.add(project);contents.loadFile(path.join(__dirname,'index.html'));
+  project.pauseRecovery=async()=>{await autoSaver.pause();await proxies.reset();library.replace(library.assets);};
+  project.relocateRecovery=(from,to)=>{recovery.relocate(to);library.replace(Object.fromEntries(Object.entries(library.assets).map(([id,a])=>[id,{...a,path:mapPath(a.path,from,to)}])));};
+  ipcMain.handle('recovery-settings',()=>recoveryLocation.settings());
+  ipcMain.handle('choose-recovery-location',chooseRecoveryLocation);
   ipcMain.handle('new-project-tab',()=>workspace.create());
   ipcMain.handle('render-settings',()=>queue.settings());
   ipcMain.handle('render-queue',()=>queue.snapshot());
@@ -102,21 +124,21 @@ ipcMain.handle('cancel-update',()=>{updates.cancel();return updates.status();});
 ipcMain.handle('install-update',installUpdate);
 ipcMain.handle('fonts',()=>fontsPromise ||=(async()=>{try{const {stdout}=await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command',"[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); Add-Type -AssemblyName System.Drawing; $fontCollection = New-Object System.Drawing.Text.InstalledFontCollection; ConvertTo-Json -Compress -InputObject @($fontCollection.Families.Name | Sort-Object -Unique)"],{windowsHide:true,timeout:15000,maxBuffer:2*1024*1024});const names=JSON.parse(stdout.replace(/^\uFEFF/,''));return Array.isArray(names)?names:[];}catch{return ['Segoe UI','Tahoma','Arial','Impact','Consolas'];}})());
 async function importMedia(paths){importingMedia=true;try{return await library.import(paths,progress=>message('import-progress',progress));}finally{importingMedia=false;}}
-ipcMain.handle('choose-media',async(_,kind)=>{if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};const chosen=await dialog.showOpenDialog(win,{title:kind==='audio'?'اختار موسيقى أو تعليق صوتي':kind==='image'?'اختار صور':'استورد فيديوهات وصور وصوت',properties:['openFile','multiSelections'],filters:kind==='audio'?audioFilter:kind==='image'?[{name:'Images',extensions:['png','jpg','jpeg','webp','bmp']}]:mediaFilter});return chosen.canceled?null:importMedia(chosen.filePaths);});
-ipcMain.handle('import-media',(_,paths)=>{if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};if(!Array.isArray(paths)||paths.some(p=>typeof p!=='string'||!path.isAbsolute(p)))return {error:'ملفات السحب غير صالحة.'};return importMedia(paths);});
+ipcMain.handle('choose-media',async(_,kind)=>{if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate||changingRecovery)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};const chosen=await dialog.showOpenDialog(win,{title:kind==='audio'?'اختار موسيقى أو تعليق صوتي':kind==='image'?'اختار صور':'استورد فيديوهات وصور وصوت',properties:['openFile','multiSelections'],filters:kind==='audio'?audioFilter:kind==='image'?[{name:'Images',extensions:['png','jpg','jpeg','webp','bmp']}]:mediaFilter});return chosen.canceled?null:importMedia(chosen.filePaths);});
+ipcMain.handle('import-media',(_,paths)=>{if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate||changingRecovery)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};if(!Array.isArray(paths)||paths.some(p=>typeof p!=='string'||!path.isAbsolute(p)))return {error:'ملفات السحب غير صالحة.'};return importMedia(paths);});
 ipcMain.handle('frame',(_,id,t)=>library.frame(id,t,960));
 ipcMain.handle('waveform',async(_,id)=>{try{return await library.waveforms.get(library.assets[id]);}catch(e){return {error:e.message};}});
 ipcMain.handle('proxy-lookup',async(_,id,size)=>{try{return await proxies.lookup(library.assets[id],size);}catch(e){return {error:e.message};}});
-ipcMain.handle('proxy-create',async(_,id,size)=>{if(active||exportPreparing||speech.busy||saving||opening||proxyMaintenance)return {error:'انتظر انتهاء الحفظ أو التصدير أو تنظيف المعاينة.'};return proxies.request(library.assets[id],size);});
+ipcMain.handle('proxy-create',async(_,id,size)=>{if(active||exportPreparing||speech.busy||saving||opening||proxyMaintenance||changingRecovery)return {error:'انتظر انتهاء الحفظ أو التصدير أو تنظيف المعاينة.'};return proxies.request(library.assets[id],size);});
 ipcMain.handle('proxy-cancel',(_,id)=>{proxies.cancel(id);return {canceled:true};});
 ipcMain.handle('proxy-stats',async()=>{const {bytes,limit}=await proxies.stats();return {bytes,limit};});
-ipcMain.handle('proxy-clear',async()=>{if(active||exportPreparing||speech.busy||saving||opening||proxyMaintenance)return {error:'انتظر انتهاء العملية الحالية.'};proxyMaintenance=true;try{const {bytes,limit}=await proxies.clear();return {bytes,limit};}catch(e){return {error:e.message};}finally{proxyMaintenance=false;}});
+ipcMain.handle('proxy-clear',async()=>{if(active||exportPreparing||speech.busy||saving||opening||proxyMaintenance||changingRecovery)return {error:'انتظر انتهاء العملية الحالية.'};proxyMaintenance=true;try{const {bytes,limit}=await proxies.clear();return {bytes,limit};}catch(e){return {error:e.message};}finally{proxyMaintenance=false;}});
 ipcMain.handle('thumbnail',(_,id,t)=>library.frame(id,t,176));
 ipcMain.on('project-state',(_,raw,isDirty)=>{projectState={...raw,displayName};if(isDirty)dirty=true;title();});
 ipcMain.handle('cancel-project-save',()=>{projectAbort?.abort();});
 function recoveryEntry(id){return resolveRecoveryMedia(recovery.read(id),recents.read().map(row=>row.path));}
 ipcMain.handle('list-recovery',()=>recovery.list().map(item=>{try{return {...item,missingCount:recoveryEntry(item.id).missingFiles.length};}catch{return item;}}));
-ipcMain.handle('save-project',async(_,raw,saveAs)=>{try{if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};return await saveProject(raw,saveAs);}catch(e){return {error:e.message};}});
+ipcMain.handle('save-project',async(_,raw,saveAs)=>{try{if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate||changingRecovery)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};return await saveProject(raw,saveAs);}catch(e){return {error:e.message};}});
 async function loadProject(file,recoveryId=null,resolvedRecovery=null){
   await autoSaver.pause();
   const {raw,sources}=recoveryId?(resolvedRecovery||recoveryEntry(recoveryId)):Project.readProject(file),assets={};let relinked=false;
@@ -130,7 +152,7 @@ async function loadProject(file,recoveryId=null,resolvedRecovery=null){
   return {state:clean,dirty,portable:projectPortable,assets:library.descriptors(),path:projectPath,name:projectPath?path.basename(projectPath):'مشروع مسترجع',recovered:!!recoveryId};
 }
 async function openProject(current,recentFile=null,relocate=false){
-  if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};
+  if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate||changingRecovery)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};
   if(recentFile!==null&&(typeof recentFile!=='string'||!recents.read().some(r=>r.path===recentFile)))return {error:'اختصار المشروع غير موجود بالقائمة.'};
   opening=true;try{
     if(current)projectState={...current,displayName};if(!await keepChanges())return {canceled:true};
@@ -145,7 +167,7 @@ ipcMain.handle('list-recent-projects',()=>recents.list());
 ipcMain.handle('remove-recent-project',(_,file)=>{try{if(typeof file!=='string')throw new Error('مسار غير صالح.');recents.remove(file);return {removed:true};}catch(e){return {error:e.message};}});
 ipcMain.handle('open-recent-project',(_,file,current,relocate)=>openProject(current,file,relocate===true));
 ipcMain.handle('restore-recovery',async(_,id,current,locateMissing=false)=>{
-  if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};opening=true;
+  if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate||changingRecovery)return {error:'انتظر انتهاء الحفظ أو التصدير أولاً.'};opening=true;
   try{
     const entry=recoveryEntry(id);
     if(entry.missingFiles.length&&locateMissing!==true)return {error:'القصات والنصوص محفوظة، لكن ملفات الوسائط التالية مو موجودة بمكانها. حدّد موقعها حتى نكمل الاسترجاع.',missingFiles:entry.missingFiles};
@@ -154,14 +176,14 @@ ipcMain.handle('restore-recovery',async(_,id,current,locateMissing=false)=>{
   }catch(e){return {error:'تعذّر الاسترجاع: '+e.message};}finally{opening=false;}
 });
 ipcMain.handle('transcription-status',()=>speech.status());
-ipcMain.handle('transcription-download',()=>{if(active||exportPreparing||saving||opening||importingMedia||installingUpdate)return {error:'انتظر انتهاء العملية الحالية.'};if([...projects].some(p=>p.speech!==speech&&p.speech.busy))return {error:'انتظر انتهاء التفريغ في المشروع الآخر.'};return speech.download();});
+ipcMain.handle('transcription-download',()=>{if(active||exportPreparing||saving||opening||importingMedia||installingUpdate||changingRecovery)return {error:'انتظر انتهاء العملية الحالية.'};if([...projects].some(p=>p.speech!==speech&&p.speech.busy))return {error:'انتظر انتهاء التفريغ في المشروع الآخر.'};return speech.download();});
 ipcMain.handle('transcription-cancel',()=>speech.cancel());
 ipcMain.handle('transcription-clear',()=>{try{if([...projects].some(p=>p.speech.busy))return {error:'انتظر انتهاء التفريغ في كل المشاريع.'};return speech.clear();}catch(e){return {error:e.message};}});
-ipcMain.handle('transcription-start',async(_,request)=>{if([...projects].some(p=>p.speech!==speech&&p.speech.job?.phase==='download'))return {error:'انتظر انتهاء تنزيل نموذج التفريغ.'};if(active||exportPreparing||speech.busy||saving||opening||importingMedia||installingUpdate)return {error:'انتظر انتهاء العملية الحالية.'};proxies.setPaused(true);if(proxies.running)proxies.cancel(proxies.running.id);try{return await speech.transcribe(request,library.assets);}finally{proxies.setPaused(false);}});
-ipcMain.handle('import-srt',async()=>{if(active||exportPreparing||speech.busy||saving||opening)return {error:'انتظر انتهاء العملية الحالية.'};const chosen=await dialog.showOpenDialog(win,{title:'استيراد ترجمة SRT',properties:['openFile'],filters:[{name:'SubRip subtitles',extensions:['srt']}]});if(chosen.canceled)return {canceled:true};try{return {cues:CaptionFiles.readSRT(chosen.filePaths[0]),name:path.basename(chosen.filePaths[0])};}catch(e){return {error:e.message};}});
-ipcMain.handle('export-srt',async(_,track)=>{if(active||exportPreparing||speech.busy||saving||opening)return {error:'انتظر انتهاء العملية الحالية.'};try{require('./captions').normalize(track);const chosen=await dialog.showSaveDialog(win,{title:'تصدير ترجمة SRT',defaultPath:'ترجمة.srt',filters:[{name:'SubRip subtitles',extensions:['srt']}]});if(chosen.canceled)return {canceled:true};const file=chosen.filePath.toLowerCase().endsWith('.srt')?chosen.filePath:chosen.filePath+'.srt';if(Object.values(library.assets).some(a=>path.resolve(file).toLowerCase()===a.path.toLowerCase())||projectPath&&path.resolve(file).toLowerCase()===projectPath.toLowerCase())throw new Error('اختار اسماً مختلفاً عن ملفات المشروع.');CaptionFiles.writeSRT(file,track);return {path:file};}catch(e){return {error:e.message};}});
+ipcMain.handle('transcription-start',async(_,request)=>{if([...projects].some(p=>p.speech!==speech&&p.speech.job?.phase==='download'))return {error:'انتظر انتهاء تنزيل نموذج التفريغ.'};if(active||exportPreparing||speech.busy||saving||opening||importingMedia||installingUpdate||changingRecovery)return {error:'انتظر انتهاء العملية الحالية.'};proxies.setPaused(true);if(proxies.running)proxies.cancel(proxies.running.id);try{return await speech.transcribe(request,library.assets);}finally{proxies.setPaused(false);}});
+ipcMain.handle('import-srt',async()=>{if(active||exportPreparing||speech.busy||saving||opening||changingRecovery)return {error:'انتظر انتهاء العملية الحالية.'};const chosen=await dialog.showOpenDialog(win,{title:'استيراد ترجمة SRT',properties:['openFile'],filters:[{name:'SubRip subtitles',extensions:['srt']}]});if(chosen.canceled)return {canceled:true};try{return {cues:CaptionFiles.readSRT(chosen.filePaths[0]),name:path.basename(chosen.filePaths[0])};}catch(e){return {error:e.message};}});
+ipcMain.handle('export-srt',async(_,track)=>{if(active||exportPreparing||speech.busy||saving||opening||changingRecovery)return {error:'انتظر انتهاء العملية الحالية.'};try{require('./captions').normalize(track);const chosen=await dialog.showSaveDialog(win,{title:'تصدير ترجمة SRT',defaultPath:'ترجمة.srt',filters:[{name:'SubRip subtitles',extensions:['srt']}]});if(chosen.canceled)return {canceled:true};const file=chosen.filePath.toLowerCase().endsWith('.srt')?chosen.filePath:chosen.filePath+'.srt';if(Object.values(library.assets).some(a=>path.resolve(file).toLowerCase()===a.path.toLowerCase())||projectPath&&path.resolve(file).toLowerCase()===projectPath.toLowerCase())throw new Error('اختار اسماً مختلفاً عن ملفات المشروع.');CaptionFiles.writeSRT(file,track);return {path:file};}catch(e){return {error:e.message};}});
 ipcMain.handle('export',async(_,opts)=>{
-  if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate)return {error:'انتظر انتهاء الحفظ أو التصدير السابق.'};exportPreparing=true;try{const meta=opts.meta,supported=await capabilities();
+  if(active||exportPreparing||speech.busy||saving||importingMedia||opening||installingUpdate||changingRecovery)return {error:'انتظر انتهاء الحفظ أو التصدير السابق.'};exportPreparing=true;try{const meta=opts.meta,supported=await capabilities();
   if(opts.encoder!=='cpu'&&!supported.some(c=>c.id===opts.encoder))return {error:'كارت الشاشة المختار غير متاح. اختار المعالج CPU أو كارت آخر من إعدادات التصدير.'};
   // Only use a 10-bit hardware encoder that passed the native capability probe.
   opts={...opts,captionPath:null,hdrEncoder:supported.find(c=>c.id===opts.encoder)?.hdrEncoder||'cpu'};
@@ -196,6 +218,6 @@ return {opened:true,id:sessionId};
 }
 if(app.requestSingleInstanceLock()){
   app.on('second-instance',()=>{if(workspace&&!installingUpdate){workspace.create();if(workspace.win.isMinimized())workspace.win.restore();workspace.win.show();workspace.win.focus();}});
-  app.whenReady().then(()=>{const {ProjectWorkspace}=require('./project-workspace');workspace=new ProjectWorkspace({BrowserWindow,ipcMain:rootIPC,directory:__dirname,version:appVersion,onNew:createProjectTab,canChange:()=>!installingUpdate});workspace.create();});
+  app.whenReady().then(async()=>{await recoveryLocation.cleanup().catch(()=>{});const {ProjectWorkspace}=require('./project-workspace');workspace=new ProjectWorkspace({BrowserWindow,ipcMain:rootIPC,directory:__dirname,version:appVersion,onNew:createProjectTab,canChange:()=>!installingUpdate&&!changingRecovery});workspace.create();});
   app.on('window-all-closed',()=>{updates.cancel();app.quit();});
 }else app.quit();
