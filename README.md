@@ -6,6 +6,8 @@ A free, open-source video editor for Windows and macOS with an Arabic interface.
 
 ## Features
 
+- **Live export list:** **التصديرات** lists running and waiting projects, output filenames, progress and timing. Cancel any export from any project window, or use **تقديم / تأخير** to reorder waiting jobs. Running exports keep their place.
+- **One-click text templates:** **قوالب النص** beside Add text or on the side rail opens a visual gallery with built-in designs and saved layouts. Selecting a design edits the selected title, or creates a title if none is selected, then focuses its text for editing.
 - **Multiple projects and an export queue:** open **مشروع جديد +** or **اشتغل على مشروع آخر** during export to work in an independent window. Exports run one at a time by default. **إعدادات المعالجة** saves a shared limit of 1–4 simultaneous exports for CPU and GPU combined; choose a limit suitable for your hardware. Waiting exports start automatically and can be canceled independently. Closing a project with a pending export asks before canceling it. Keep the app open while the queue runs; queued exports are not restored after an app restart.
 - **Organized workspace:** larger preview, searchable media library with video/image filters, tabbed text controls, adjustable timeline height, and an in-app shortcut guide. UI numbers use English digits.
 - **Simple timeline editing:** split with the scissors tool, delete or reorder clips, scrub through thumbnails, and drag media onto the timeline.

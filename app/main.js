@@ -7,7 +7,7 @@ const {RecoveryStore,AutoSaver}=require('./recovery');
 const appPackage=require('../package.json'),appVersion=appPackage.version,{Updates}=require('./updates');
 const {randomUUID}=require('node:crypto'),{RenderQueue}=require('./render-queue'),{ProjectRouter}=require('./project-router');
 const projects=new Set(),router=new ProjectRouter(rootIPC);
-const queue=new RenderQueue(path.join(app.getPath('userData'),'render-settings.json'));
+const queue=new RenderQueue(path.join(app.getPath('userData'),'render-settings.json'),{onChange:value=>broadcast('render-queue',value)});
 let installingUpdate=false,encoderPromise,fontsPromise;
 const exec=promisify(execFile),unpack=p=>p.replace('app.asar','app.asar.unpacked'),ffmpeg=unpack(require('ffmpeg-static')),ffprobe=unpack(require('@ffprobe-installer/ffprobe').path);
 function broadcast(channel,value){for(const project of projects)project.message(channel,value);}
@@ -74,6 +74,9 @@ async function keepChanges(){if(!dirty||!projectState)return true;const choice=a
   win.on('closed',()=>{projects.delete(project);autoSaver.stop();speech.cancel();library.waveforms.cancel();proxies.reset().then(()=>fs.promises.rm(proxies.directory,{recursive:true,force:true})).catch(()=>{});});
   ipcMain.handle('new-project-window',()=>{if(installingUpdate)return {error:'انتظر انتهاء التحديث.'};createProjectWindow();return {opened:true};});
   ipcMain.handle('render-settings',()=>queue.settings());
+  ipcMain.handle('render-queue',()=>queue.snapshot());
+  ipcMain.handle('cancel-queued-export',(_,id)=>queue.cancelExport(id));
+  ipcMain.handle('move-queued-export',(_,id,direction)=>{try{return queue.move(id,direction);}catch(e){return {error:e.message};}});
   ipcMain.handle('set-render-limit',(_,limit)=>{try{const settings=queue.setLimit(limit);broadcast('render-settings',settings);return settings;}catch(e){return {error:e.message};}});
 
 ipcMain.handle('encoders',()=>capabilities());
@@ -152,8 +155,9 @@ ipcMain.handle('export',async(_,opts)=>{
   try{titleInputs.forEach((t,i)=>{const p=path.join(work,`title-${i}.png`);fs.writeFileSync(p,Buffer.from(t.png.split(',')[1],'base64'));overlays.push({path:p,start:t.start,duration:t.duration,animation:t.animation});});
     opts.captionPath=CaptionFiles.writeFrames(work,captionFrames,captionRate);
     autoSaver.capture();const args=exportArgs(library.assets,overlays,tempOutput,meta,opts);
+    const codec=args[args.indexOf('-c:v')+1],queueEncoder=codec.startsWith('lib')?'CPU':supported.find(c=>c.id===codec.replace('hevc_','h264_'))?.name||codec;
     const {startExport}=require('./export-job');
-    active=startExport({queue,ffmpeg,args,work,tempOutput,output:chosen.filePath,duration:ExportRange.normalize(opts.range,length,meta.fps).duration,
+    active=startExport({queue,ffmpeg,args,work,tempOutput,output:chosen.filePath,name:path.parse(projectPath||first.path).name,encoder:queueEncoder,duration:ExportRange.normalize(opts.range,length,meta.fps).duration,
       setIntervalFn:setInterval,clearIntervalFn:clearInterval,notify:p=>message('progress',p),onComplete:result=>{
         active=null;library.waveforms.setPaused(false);proxies.setPaused(false);if(result.path)lastOutput=result.path;message('complete',result);
       }});

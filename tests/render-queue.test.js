@@ -35,3 +35,25 @@ test('increasing the limit starts waiting jobs; spawn failure and cancellation b
  const next=startExport({queue,work:fs.mkdtempSync(path.join(folder,'work-')),tempOutput:path.join(folder,'temp'),output:path.join(folder,'out'),duration:2,notify(){},onComplete(){},spawnFn(){assert.fail('must not spawn');}});
  await next.cancel();assert.equal((await next.done).canceled,true);assert.equal(queue.jobs.length,0);
 });
+test('public queue snapshots track progress and reordered positions without moving running exports',async t=>{
+ const {folder,queue}=fixture(t),snapshots=[];queue.onChange=s=>snapshots.push(s);
+ const a=queue.acquire(path.join(folder,'a'),()=>{},{name:'مشروع أ',encoder:'NVIDIA'}),b=queue.acquire(path.join(folder,'b')),c=queue.acquire(path.join(folder,'c'));
+ a.update({percent:42.7,elapsedSeconds:30,remainingSeconds:40,phase:'rendering'});
+ const snapshot=queue.snapshot();assert.equal(snapshot.jobs[0].name,'مشروع أ');assert.equal(snapshot.jobs[0].percent,42.7);assert.equal(snapshot.jobs[0].encoder,'NVIDIA');assert.equal(JSON.stringify(snapshot).includes('resolve'),false);
+ assert.deepEqual(snapshot.jobs.map(j=>j.position),[null,1,2]);
+ queue.move(c.id,'up');assert.deepEqual(queue.snapshot().jobs.map(j=>j.id),[a.id,c.id,b.id]);assert.deepEqual(queue.snapshot().jobs.map(j=>j.position),[null,1,2]);
+ queue.move(c.id,'down');assert.deepEqual(queue.snapshot().jobs.map(j=>j.id),[a.id,b.id,c.id]);queue.move(c.id,'up');
+ assert.throws(()=>queue.move(a.id,'down'));assert.throws(()=>queue.move('missing','up'));assert.throws(()=>queue.move(b.id,'invalid'));
+ a.release();assert.equal(await c.ready,true);assert.equal(b.state,'queued');assert.throws(()=>queue.move(c.id,'up'));
+ c.release();assert.equal(await b.ready,true);b.release();assert.equal(queue.snapshot().jobs.length,0);
+ assert.ok(snapshots.every((s,i)=>!i||s.revision>snapshots[i-1].revision));
+});
+test('global cancel targets the correct process and restores controls on kill failure',async t=>{
+ const {folder,queue}=fixture(t),children=[];
+ const create=name=>startExport({queue,work:fs.mkdtempSync(path.join(folder,'work-')),tempOutput:path.join(folder,name+'.tmp'),output:path.join(folder,name),name,encoder:'CPU',duration:60,notify(){},onComplete(){},spawnFn(){const c=new EventEmitter();c.stdout=new EventEmitter();c.stderr=new EventEmitter();c.exitCode=null;c.signalCode=null;c.kill=()=>false;children.push(c);return c;}});
+ const a=create('first'),b=create('second');await flush();const [first,second]=queue.snapshot().jobs;
+ await queue.cancelExport(second.id);assert.equal((await b.done).canceled,true);assert.equal(queue.snapshot().jobs.length,1);assert.equal(children.length,1);
+ const failed=await queue.cancelExport(first.id);assert.ok(failed.error);assert.equal(queue.snapshot().jobs[0].canceling,false);
+ children[0].kill=()=>{children[0].emit('close',-1);return true;};await queue.cancelExport(first.id);assert.equal((await a.done).canceled,true);assert.equal(queue.snapshot().jobs.length,0);
+ assert.deepEqual(await queue.cancelExport(first.id),{notRunning:true});
+});

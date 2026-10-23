@@ -23,12 +23,39 @@ app.whenReady().then(async()=>{
   await js(a,"$('render-new-project').click()");await until(()=>windows.length===2);const b=windows[1];await setup(b);
   assert.notEqual(a.webContents.session,b.webContents.session);
   const assetA=await js(a,'assets[0].url');assert.equal(await js(b,`fetch(${JSON.stringify(assetA)}).then(r=>r.status)`),404,'media from the first project must be inaccessible in the second');
+  // Direct template picker creates a title only on selection and preserves existing text/timing.
+  await js(b,"$('choose-title-template').click()");assert.equal(await js(b,"$('text-template-dialog').open&&titles.length===0"),true);
+  await wait(150);fs.writeFileSync(path.join(folder,'templates.png'),(await b.webContents.capturePage()).toPNG());
+  await js(b,"document.querySelector('#template-picker-grid [data-template=neon]').click()");assert.equal(await js(b,"currentTitle().template==='neon'&&document.activeElement.id==='title'"),true);
+  await js(b,"currentTitle().title='Keep this title';currentTitle().titleStart=2;fillTitleFields();$('nav-templates').click();document.querySelector('#template-picker-grid [data-template=card]').click()");
+  assert.equal(await js(b,"currentTitle().title==='Keep this title'&&currentTitle().titleStart===2&&currentTitle().template==='card'"),true);
+  await js(b,"$('layout-name').value='Saved layout';$('save-template').onclick()");
+  await js(b,"currentTitle().title='Changed';fillTitleFields();$('choose-title-template').click();document.querySelector('#template-picker-layouts button').click()");
+  assert.equal(await js(b,"currentTitle().title==='Keep this title'&&currentTitle().titleStart===2"),true);
+  await js(b,"titlesLocked=true;$('choose-title-template').click()");assert.equal(await js(b,"[...document.querySelectorAll('#text-template-dialog .template-choice,#template-picker-layouts button')].every(button=>button.disabled)"),true);
+  await js(b,"$('close-text-template').click();titlesLocked=false");
+  b.setSize(1120,740);await wait(150);
+  assert.equal(await js(b,'document.documentElement.scrollWidth<=innerWidth'),true,'toolbar must fit the minimum window width');
+  b.setSize(1500,960);
   await js(b,"$('title').value='مشروع ثاني';$('add-text').click()");assert.equal(await js(a,'titles.length'),0);
   saves.push(path.join(folder,'b.mp4'));await js(b,"openExport();$('export').onclick()");
   await until(()=>js(b,"testProgress.some(p=>p.phase==='queued')"));
   assert.equal(await js(b,"testProgress.some(p=>p.phase==='rendering')"),false);
   assert.equal(await js(b,"$('cancel').disabled"),false);
   await wait(600);fs.writeFileSync(path.join(folder,'queued.png'),(await b.webContents.capturePage()).toPNG());
+  // A third project lets us reorder from another window and cancel by stable job ID.
+  await js(b,"$('render-new-project').click()");await until(()=>windows.length===3);const c=windows[2];await setup(c);
+  saves.push(path.join(folder,'c.mp4'));await js(c,"openExport();$('export').onclick()");await until(()=>js(c,"testProgress.some(p=>p.phase==='queued')"));
+  await js(c,"$('render-open-queue').click()");await until(()=>js(c,"document.querySelectorAll('.queue-job').length===3"));
+  const state=await js(c,'sahl.renderQueue()'),idA=state.jobs[0].id,idB=state.jobs[1].id,idC=state.jobs[2].id;
+  await js(c,`document.querySelector('[data-job-id="${idC}"] [data-action=up]').click()`);
+  await until(()=>js(b,`sahl.renderQueue().then(s=>s.jobs[1].id==='${idC}'&&s.jobs[2].id==='${idB}')`));
+  assert.equal(await js(b,"testProgress.at(-1).position"),2);
+  await wait(300);fs.writeFileSync(path.join(folder,'queue-list.png'),(await c.webContents.capturePage()).toPNG());
+  await js(b,"$('render-open-queue').click()");await until(()=>js(b,"document.querySelectorAll('.queue-job').length===3"));
+  await js(b,`document.querySelector('[data-job-id="${idC}"] [data-action=cancel]').click()`);await until(()=>js(c,'testComplete.length===1'));
+  assert.equal(await js(a,'testComplete.length'),0);assert.equal(await js(b,'testComplete.length'),0);
+  c.close();await until(()=>c.isDestroyed());await js(b,"$('close-render-queue').click()");
   await js(b,"$('cancel').click()");await until(()=>js(b,'testComplete.length===1'));assert.equal(await js(a,'testComplete.length'),0);
   saves.push(path.join(folder,'b.mp4'));await js(b,"$('export').onclick()");await until(()=>js(b,"testProgress.filter(p=>p.phase==='queued').length>=2"));
   await js(b,"$('render-open-settings').click()");await until(()=>js(b,"$('render-settings-dialog').open"));
@@ -38,7 +65,9 @@ app.whenReady().then(async()=>{
   assert.equal(JSON.parse(fs.readFileSync(path.join(folder,'profile','render-settings.json'))).limit,2);
   await wait(600);fs.writeFileSync(path.join(folder,'settings.png'),(await b.webContents.capturePage()).toPNG());
   await js(b,"$('close-render-settings').click();$('cancel').click()");await until(()=>js(b,'testComplete.length===2'));
-  await js(a,"$('cancel').click()");await until(()=>js(a,'testComplete.length===1'));
+  await js(b,"$('render-open-queue').click()");await until(()=>js(b,"document.querySelectorAll('.queue-job').length===1"));
+  await js(b,`document.querySelector('[data-job-id="${idA}"] [data-action=cancel]').click()`);await until(()=>js(a,'testComplete.length===1'));
+  await until(()=>js(b,"$('queue-empty').hidden===false"));await js(b,"$('close-render-queue').click()");
   // After the first project closes, routing, rendering and edits in the other stay usable.
   a.close();await until(()=>a.isDestroyed());
   await js(b,"$('export-dialog').close();clips[0].end=1;renderTimeline();titles=[];draw()");
