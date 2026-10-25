@@ -60,3 +60,5 @@ dialog{width:500px;padding:26px;border-radius:16px;background:#1c1c27;border-col
 #export-dialog.is-exporting .export-footnote{display:none}
 @media(prefers-reduced-motion:reduce){#export-activity progress::-webkit-progress-value{transition:none}}
 @media(max-height:740px){#export-dialog.is-exporting{padding:20px 26px}#export-dialog.is-exporting .dialog-heading{margin-bottom:16px}#export-activity .timing-cards>div{padding:14px 16px;gap:8px}#export-activity .timing-cards b{font-size:24px;min-height:32px}#export-details{margin-top:18px;padding-top:14px}#export-details dl{gap:14px 20px}#export-details h3{margin-bottom:14px}#export-dialog #render-actions{margin-top:20px}}
+
+.render-project-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.render-project-actions button{height:42px;margin:0;flex:1;min-width:180px;padding:12px}#render-settings-dialog{width:560px;max-width:calc(100vw - 32px);max-height:90vh;overflow:auto}#render-settings-dialog .field{margin-top:20px}#render-settings-dialog .hint{line-height:1.8}#save-render-settings{width:100%;margin-top:12px}#render-settings-message{font-size:13px;color:#c7b5e9;min-height:20px}
